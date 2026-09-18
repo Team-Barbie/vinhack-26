@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import GazePhraseBoard from './GazePhraseBoard'
 import './NeedsBoard.css'
 
 interface NeedTile {
@@ -10,7 +11,7 @@ interface NeedTile {
   group?: 'person' | 'action' | 'question' | 'care' | 'feeling' | 'modifier'
 }
 
-type Screen = 'main' | 'quick' | 'sentence' | 'more' | 'urgent'
+type Screen = 'main' | 'quick' | 'gaze' | 'sentence' | 'more' | 'urgent'
 
 const MAIN_TILES: NeedTile[] = [
   { id: 'nurse', icon: '🔔', label: 'Call Nurse', phrase: 'I need a nurse' },
@@ -90,6 +91,7 @@ const URGENT_TILES: NeedTile[] = [
 const SCREENS: Record<Screen, { title: string; tiles: NeedTile[] }> = {
   main: { title: 'Essential Requests', tiles: MAIN_TILES },
   quick: { title: 'Quick Talk · tap once to speak', tiles: QUICK_TILES },
+  gaze: { title: 'Gaze Phrases', tiles: [] },
   sentence: { title: 'Sentence Builder · choose words from left to right', tiles: SENTENCE_TILES },
   more: { title: 'Comfort & Personal Needs', tiles: MORE_TILES },
   urgent: { title: 'Urgent / Health Requests', tiles: URGENT_TILES },
@@ -208,6 +210,13 @@ export default function NeedsBoard({ onExit }: { onExit: () => void }) {
           </button>
           <button
             type="button"
+            className={`nav-tab ${screen === 'gaze' ? 'active' : ''}`}
+            onClick={() => setScreen('gaze')}
+          >
+            Gaze Phrases
+          </button>
+          <button
+            type="button"
             className={`nav-tab ${screen === 'sentence' ? 'active' : ''}`}
             onClick={() => setScreen('sentence')}
           >
@@ -230,27 +239,31 @@ export default function NeedsBoard({ onExit }: { onExit: () => void }) {
         </button>
       </div>
 
-      <div className="quick-answer">
-        <span className="quick-answer-label">Answering a question?</span>
-        <div className="quick-answer-buttons">
-          <button
-            type="button"
-            className={`answer-btn answer-yes ${answerFlash === 'yes' ? 'flash' : ''}`}
-            onClick={() => answer('yes')}
-          >
-            ✅ Yes
-          </button>
-          <button
-            type="button"
-            className={`answer-btn answer-no ${answerFlash === 'no' ? 'flash' : ''}`}
-            onClick={() => answer('no')}
-          >
-            ❌ No
-          </button>
+      {screen !== 'gaze' && (
+        <div className="quick-answer">
+          <span className="quick-answer-label">Answering a question?</span>
+          <div className="quick-answer-buttons">
+            <button
+              type="button"
+              className={`answer-btn answer-yes ${answerFlash === 'yes' ? 'flash' : ''}`}
+              onClick={() => answer('yes')}
+            >
+              ✅ Yes
+            </button>
+            <button
+              type="button"
+              className={`answer-btn answer-no ${answerFlash === 'no' ? 'flash' : ''}`}
+              onClick={() => answer('no')}
+            >
+              ❌ No
+            </button>
+          </div>
         </div>
-      </div>
+      )}
 
-      {screen === 'sentence' ? (
+      {screen === 'gaze' ? (
+        <GazePhraseBoard />
+      ) : screen === 'sentence' ? (
         <div className="phrase-bar">
           <div className="phrase-text" aria-live="polite">
             {sentence.length === 0 ? (
@@ -297,21 +310,24 @@ export default function NeedsBoard({ onExit }: { onExit: () => void }) {
         </div>
       )}
 
-      <h2 className="screen-title">{title}</h2>
-
-      <div className="tile-grid">
-        {tiles.map((tile) => (
-          <button
-            key={tile.id}
-            type="button"
-            className={`need-tile ${tile.group ? `group-${tile.group}` : ''} ${spokenTile === tile.id ? 'spoken' : ''}`}
-            onClick={() => activateTile(tile)}
-          >
-            <span className="need-icon">{tile.icon}</span>
-            <span className="need-label">{tile.label}</span>
-          </button>
-        ))}
-      </div>
+      {screen !== 'gaze' && (
+        <>
+          <h2 className="screen-title">{title}</h2>
+          <div className="tile-grid">
+            {tiles.map((tile) => (
+              <button
+                key={tile.id}
+                type="button"
+                className={`need-tile ${tile.group ? `group-${tile.group}` : ''} ${spokenTile === tile.id ? 'spoken' : ''}`}
+                onClick={() => activateTile(tile)}
+              >
+                <span className="need-icon">{tile.icon}</span>
+                <span className="need-label">{tile.label}</span>
+              </button>
+            ))}
+          </div>
+        </>
+      )}
     </div>
   )
 }
