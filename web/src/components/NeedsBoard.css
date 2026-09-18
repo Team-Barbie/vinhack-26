@@ -279,6 +279,15 @@
   background: linear-gradient(180deg, #ffffff, #f4f4f2);
 }
 
+.phrase-btn.speak.is-speaking {
+  box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.16), 0 8px 24px -10px rgba(255, 255, 255, 0.55);
+  animation: speaking-pulse 1s ease-in-out infinite alternate;
+}
+
+@keyframes speaking-pulse {
+  to { transform: scale(1.025); }
+}
+
 .phrase-btn.clear {
   background: var(--glass-tint);
   border: 1px solid var(--glass-border);

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import './NeedsBoard.css'
 
 interface NeedTile {
@@ -49,18 +49,48 @@ const SCREENS: Record<Screen, { title: string; tiles: NeedTile[] }> = {
   urgent: { title: 'Urgent / Health Requests', tiles: URGENT_TILES },
 }
 
-function speak(text: string) {
-  if (!text || !('speechSynthesis' in window)) return
-  window.speechSynthesis.cancel()
-  const utterance = new SpeechSynthesisUtterance(text)
-  utterance.rate = 0.95
-  window.speechSynthesis.speak(utterance)
-}
-
 export default function NeedsBoard() {
   const [screen, setScreen] = useState<Screen>('urgent')
   const [phrase, setPhrase] = useState<NeedTile[]>([])
   const [answerFlash, setAnswerFlash] = useState<'yes' | 'no' | null>(null)
+  const [isSpeaking, setIsSpeaking] = useState(false)
+  const audioRef = useRef<HTMLAudioElement | null>(null)
+  const audioQueueRef = useRef<string[]>([])
+  const playNextRef = useRef<() => void>(() => undefined)
+
+  useEffect(() => () => {
+    audioRef.current?.pause()
+    audioQueueRef.current = []
+  }, [])
+
+  const playAudioClips = useCallback((clipIds: string[]) => {
+    const audio = audioRef.current
+    if (!audio) return
+
+    audio.pause()
+    audioQueueRef.current = [...clipIds]
+
+    playNextRef.current = () => {
+      const clipId = audioQueueRef.current.shift()
+      if (!clipId) {
+        setIsSpeaking(false)
+        return
+      }
+
+      audio.src = `/audio/${clipId}.wav`
+      audio.currentTime = 0
+      audio.muted = false
+      audio.volume = 1
+      audio.load()
+      setIsSpeaking(true)
+      void audio.play().catch(() => {
+        setIsSpeaking(false)
+        audioQueueRef.current = []
+      })
+    }
+
+    playNextRef.current()
+  }, [])
 
   const addTile = (tile: NeedTile) => {
     setPhrase((prev) => [...prev, tile])
@@ -69,12 +99,11 @@ export default function NeedsBoard() {
   const clear = () => setPhrase([])
 
   const speakPhrase = () => {
-    const text = phrase.map((t) => t.phrase).join('. ')
-    speak(text)
+    playAudioClips(phrase.map((tile) => tile.id))
   }
 
   const answer = (value: 'yes' | 'no') => {
-    speak(value === 'yes' ? 'Yes' : 'No')
+    playAudioClips([`answer-${value}`])
     setAnswerFlash(value)
     window.setTimeout(() => setAnswerFlash((current) => (current === value ? null : current)), 500)
   }
@@ -83,6 +112,13 @@ export default function NeedsBoard() {
 
   return (
     <div className={`needs-board screen-${screen}`}>
+      <audio
+        ref={audioRef}
+        preload="auto"
+        playsInline
+        onEnded={() => playNextRef.current()}
+        onError={() => playNextRef.current()}
+      />
       <div className="board-nav">
         <div className="nav-tabs">
           <button
@@ -145,11 +181,12 @@ export default function NeedsBoard() {
         <div className="phrase-actions">
           <button
             type="button"
-            className="phrase-btn speak"
+            className={`phrase-btn speak ${isSpeaking ? 'is-speaking' : ''}`}
             onClick={speakPhrase}
             disabled={phrase.length === 0}
+            aria-pressed={isSpeaking}
           >
-            🔊 Speak
+            {isSpeaking ? '🔊 Speaking…' : '🔊 Speak'}
           </button>
           <button
             type="button"
