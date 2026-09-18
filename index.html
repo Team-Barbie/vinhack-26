@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Gaze Shot</title>
+  </head>
+  <body>
+    <canvas id="game"></canvas>
+    <video id="camera" playsinline muted></video>
+
+    <div id="overlay">
+      <section id="panel-start" class="panel">
+        <p class="eyebrow">Webcam aim trainer</p>
+        <h1>Gaze Shot</h1>
+        <p class="lede">
+          Look around the screen to move the crosshair. Blink both eyes to shoot.
+          After a short calibration, three targets appear — pop as many as you can in 60 seconds.
+        </p>
+        <fieldset class="mode">
+          <legend>Fire mode</legend>
+          <label><input type="radio" name="fire-mode" value="blink" checked /> Blink</label>
+          <label><input type="radio" name="fire-mode" value="dwell" /> Dwell (look at a target)</label>
+        </fieldset>
+        <div class="actions">
+          <button id="btn-calibrate" type="button" class="primary">Calibrate and play</button>
+          <button id="btn-saved" type="button" class="ghost hidden">Use last calibration</button>
+        </div>
+        <ul class="tips">
+          <li>The app asks for fullscreen so the calibrated screen matches what you play on.</li>
+          <li>First look at each glowing dot with your head still. Then repeat a few anchors while turning your head slightly and moving nearer/farther.</li>
+          <li>If you resize, zoom, or leave fullscreen, recalibrate — the old map is not stretched.</li>
+        </ul>
+      </section>
+
+      <section id="panel-loading" class="panel hidden">
+        <p class="eyebrow">Setting up</p>
+        <h1>Loading eye tracker</h1>
+        <p class="lede">Allow camera access, then MediaPipe Face Landmarker downloads once. Nothing leaves this computer.</p>
+        <div class="spinner" aria-hidden="true"></div>
+      </section>
+
+      <section id="panel-ready" class="panel hidden">
+        <p class="eyebrow">Ready</p>
+        <h1>Calibration complete</h1>
+        <p id="ready-error" class="lede"></p>
+        <div class="actions">
+          <button id="btn-start-round" type="button" class="primary">Start 60s round</button>
+          <button id="btn-recalibrate" type="button" class="ghost">Recalibrate</button>
+        </div>
+        <p class="hint">Blink to shoot · Space also fires · D accuracy test · C recalibrates</p>
+      </section>
+
+      <section id="panel-results" class="panel hidden">
+        <p class="eyebrow">Round over</p>
+        <h1 id="results-hits">0</h1>
+        <p class="lede">hits</p>
+        <dl id="results-stats" class="stats"></dl>
+        <div class="actions">
+          <button id="btn-replay" type="button" class="primary">Play again (R)</button>
+          <button id="btn-recalibrate-2" type="button" class="ghost">Recalibrate (C)</button>
+        </div>
+      </section>
+
+      <section id="panel-error" class="panel hidden">
+        <p class="eyebrow">Something went wrong</p>
+        <h1>Can’t start tracking</h1>
+        <p id="error-text" class="lede"></p>
+        <div class="actions">
+          <button id="btn-retry" type="button" class="primary">Try again</button>
+        </div>
+      </section>
+    </div>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

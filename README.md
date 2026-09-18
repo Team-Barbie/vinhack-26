@@ -1,50 +1,35 @@
-# vinhack-26
+# Gaze Shot
 
-Real-time **iris and eye tracking** with MediaPipe Face Landmarker. The webcam feed is processed on-device and overlaid with iris contours, per-eye gaze, blinks, head pose, and an estimated camera distance.
+Browser aim trainer controlled with your eyes. A webcam plus [MediaPipe Face Landmarker](https://ai.google.dev/edge/mediapipe/solutions/vision/face_landmarker) estimates where you look; a blink shoots.
 
-## What it tracks
-
-- Left / right **iris center, ring, and diameter**
-- Eye contours and **eye aspect ratio**
-- **Gaze direction** from iris position fused with ARKit-style look blendshapes
-- **Blinks** (blendshapes + EAR, with a running count)
-- **Head pose** (pitch / yaw / roll) from the facial transform matrix
-- **Distance to camera** from iris size (11.7 mm average diameter)
-- Optional **9-point gaze calibration** mapped onto the window
-
-## Setup
-
-Use Python **3.11** (MediaPipe wheels are reliable there; 3.14 may not install).
-
-```powershell
-py -3.11 -m venv .venv
-.\.venv\Scripts\Activate.ps1
-pip install -r requirements.txt
-```
-
-The Face Landmarker model (`models/face_landmarker.task`) downloads automatically on first run.
+Nothing is uploaded. Video stays in the browser.
 
 ## Run
 
-```powershell
-python main.py
+```bash
+npm install
+npm run dev
 ```
 
-Useful flags:
+Open the local URL (camera access requires `localhost` or HTTPS). Allow the webcam when prompted.
 
-```powershell
-python main.py --camera 1 --width 1280 --height 720
-python main.py --no-mirror
-```
+## How to play
 
-## Controls
+1. Sit about an arm’s length from the screen with the camera at eye level.
+2. Use even lighting. Avoid a bright window behind you.
+3. Keep your head still and look with your eyes, not by turning your face.
+4. Stare at each glowing calibration dot until it fills (12 dots), then follow 4 accuracy-check dots. Missing tracking pauses collection; C restarts calibration.
+5. A crosshair should start following your eyes. If it is off, **click where you are actually looking**. Press Enter to play.
+6. Look at a target and **blink both eyes** to shoot. Spacebar also fires. Press `R` to restart a round, `C` to recalibrate.
 
-| Key | Action |
-| --- | --- |
-| `Q` / `Esc` | Quit |
-| `C` | Start or cancel 9-point calibration |
-| `Space` | Capture the current calibration target |
-| `R` | Reset blink count and calibration |
-| `M` | Toggle sparse face-mesh points |
+If blinks are unreliable (very dry eyes, some glasses), switch **Fire mode** to **Dwell** on the start screen and hold your gaze on a target.
 
-Keep your face lit and about 40–80 cm from the camera. Calibration is more stable if you hold still on each dot, then press Space.
+Targets adapt to the measured validation error. Accuracy depends on your camera, lighting, and head position; recalibrate if you shift in your chair. Blink shots fire on reopening, while dwell progress stops whenever tracking or eye openness is unreliable.
+
+Tracking updates use unique camera frames and an adaptive smoother. Old calibrations are intentionally ignored after changes to the eye-coordinate convention; perform a fresh calibration after updating. Run `npm test` for synthetic tracking and gameplay regression checks.
+
+## Stack
+
+- Vite + TypeScript
+- `@mediapipe/tasks-vision` (Apache-2.0) for 478 face/iris landmarks, blink blendshapes, and head pose
+- Per-user interpolation maps iris-in-eye position to screen coordinates
