@@ -7,9 +7,10 @@ interface NeedTile {
   label: string
   phrase: string
   instant?: boolean
+  group?: 'person' | 'action' | 'question' | 'care' | 'feeling' | 'modifier'
 }
 
-type Screen = 'main' | 'quick' | 'more' | 'urgent'
+type Screen = 'main' | 'quick' | 'sentence' | 'more' | 'urgent'
 
 const MAIN_TILES: NeedTile[] = [
   { id: 'nurse', icon: '🔔', label: 'Call Nurse', phrase: 'I need a nurse' },
@@ -50,6 +51,33 @@ const QUICK_TILES: NeedTile[] = [
   { id: 'uncomfortable', icon: '😣', label: "I'm Uncomfortable", phrase: 'I am uncomfortable', instant: true },
 ]
 
+const SENTENCE_TILES: NeedTile[] = [
+  { id: 'word-i', icon: '🧍', label: 'I', phrase: 'I', group: 'person' },
+  { id: 'word-you', icon: '🫵', label: 'You', phrase: 'you', group: 'person' },
+  { id: 'word-am', icon: '═', label: 'Am / Is', phrase: 'am', group: 'modifier' },
+  { id: 'word-want', icon: '🤲', label: 'Want', phrase: 'want', group: 'action' },
+  { id: 'word-need', icon: '🫴', label: 'Need', phrase: 'need', group: 'action' },
+  { id: 'word-have', icon: '🤝', label: 'Have', phrase: 'have', group: 'action' },
+  { id: 'word-feel', icon: '🫀', label: 'Feel', phrase: 'feel', group: 'action' },
+  { id: 'word-help', icon: '🙋', label: 'Help', phrase: 'help', group: 'care' },
+  { id: 'word-what', icon: '❔', label: 'What?', phrase: 'what', group: 'question' },
+  { id: 'word-where', icon: '📍', label: 'Where?', phrase: 'where', group: 'question' },
+  { id: 'word-nurse', icon: '🧑‍⚕️', label: 'Nurse', phrase: 'nurse', group: 'care' },
+  { id: 'word-doctor', icon: '🩺', label: 'Doctor', phrase: 'doctor', group: 'care' },
+  { id: 'word-water', icon: '💧', label: 'Water', phrase: 'water', group: 'care' },
+  { id: 'word-medicine', icon: '💊', label: 'Medicine', phrase: 'medicine', group: 'care' },
+  { id: 'word-pain', icon: '🤕', label: 'Pain', phrase: 'pain', group: 'feeling' },
+  { id: 'word-hot', icon: '🥵', label: 'Hot', phrase: 'hot', group: 'feeling' },
+  { id: 'word-cold', icon: '🥶', label: 'Cold', phrase: 'cold', group: 'feeling' },
+  { id: 'word-good', icon: '👍', label: 'Good', phrase: 'good', group: 'feeling' },
+  { id: 'word-bad', icon: '👎', label: 'Bad', phrase: 'bad', group: 'feeling' },
+  { id: 'word-more', icon: '➕', label: 'More', phrase: 'more', group: 'modifier' },
+  { id: 'word-not', icon: '✖️', label: 'Not', phrase: 'not', group: 'modifier' },
+  { id: 'word-please', icon: '🙏', label: 'Please', phrase: 'please', group: 'modifier' },
+  { id: 'word-now', icon: '⏱️', label: 'Now', phrase: 'now', group: 'modifier' },
+  { id: 'word-finished', icon: '🏁', label: 'Finished', phrase: 'finished', group: 'modifier' },
+]
+
 const URGENT_TILES: NeedTile[] = [
   { id: 'emergency', icon: '🚨', label: 'Emergency Help', phrase: 'I need immediate assistance' },
   { id: 'breathing', icon: '🫁', label: 'Breathing Trouble', phrase: "I'm having difficulty breathing" },
@@ -62,6 +90,7 @@ const URGENT_TILES: NeedTile[] = [
 const SCREENS: Record<Screen, { title: string; tiles: NeedTile[] }> = {
   main: { title: 'Essential Requests', tiles: MAIN_TILES },
   quick: { title: 'Quick Talk · tap once to speak', tiles: QUICK_TILES },
+  sentence: { title: 'Sentence Builder · choose words from left to right', tiles: SENTENCE_TILES },
   more: { title: 'Comfort & Personal Needs', tiles: MORE_TILES },
   urgent: { title: 'Urgent / Health Requests', tiles: URGENT_TILES },
 }
@@ -77,6 +106,7 @@ function speak(text: string) {
 export default function NeedsBoard() {
   const [screen, setScreen] = useState<Screen>('urgent')
   const [phrase, setPhrase] = useState<NeedTile[]>([])
+  const [sentence, setSentence] = useState<NeedTile[]>([])
   const [answerFlash, setAnswerFlash] = useState<'yes' | 'no' | null>(null)
   const [spokenTile, setSpokenTile] = useState<string | null>(null)
   const [spokenMessage, setSpokenMessage] = useState('')
@@ -119,6 +149,16 @@ export default function NeedsBoard() {
   }
 
   const activateTile = (tile: NeedTile) => {
+    if (screen === 'sentence') {
+      setSentence((prev) => [...prev, tile])
+      speak(tile.phrase)
+      setSpokenTile(tile.id)
+      window.setTimeout(() => {
+        setSpokenTile((current) => (current === tile.id ? null : current))
+      }, 450)
+      return
+    }
+
     if (!tile.instant) {
       addTile(tile)
       return
@@ -132,7 +172,21 @@ export default function NeedsBoard() {
     }, 650)
   }
 
-  const clear = () => setPhrase([])
+  const activePhrase = screen === 'sentence' ? sentence : phrase
+
+  const clear = () => {
+    if (screen === 'sentence') {
+      setSentence([])
+      return
+    }
+    setPhrase([])
+  }
+
+  const undoSentence = () => setSentence((prev) => prev.slice(0, -1))
+
+  const speakSentence = () => {
+    speak(sentence.map((tile) => tile.phrase).join(' '))
+  }
 
   const answer = (value: 'yes' | 'no') => {
     playAudioClips([`answer-${value}`])
@@ -166,6 +220,13 @@ export default function NeedsBoard() {
             onClick={() => setScreen('quick')}
           >
             Quick Talk
+          </button>
+          <button
+            type="button"
+            className={`nav-tab ${screen === 'sentence' ? 'active' : ''}`}
+            onClick={() => setScreen('sentence')}
+          >
+            Sentence Board
           </button>
           <button
             type="button"
@@ -212,10 +273,12 @@ export default function NeedsBoard() {
 
       <div className="phrase-bar">
         <div className="phrase-text" aria-live="polite">
-          {phrase.length === 0 ? (
-            <span className="phrase-placeholder">Tap icons below to build a phrase…</span>
+          {activePhrase.length === 0 ? (
+            <span className="phrase-placeholder">
+              {screen === 'sentence' ? 'Choose words below to build a sentence…' : 'Tap icons below to build a phrase…'}
+            </span>
           ) : (
-            phrase.map((t, i) => (
+            activePhrase.map((t, i) => (
               <span key={`${t.id}-${i}`} className="phrase-chip">
                 <span className="phrase-chip-icon">{t.icon}</span>
                 {t.phrase}
@@ -224,11 +287,31 @@ export default function NeedsBoard() {
           )}
         </div>
         <div className="phrase-actions">
+          {screen === 'sentence' && (
+            <>
+              <button
+                type="button"
+                className="phrase-btn speak"
+                onClick={speakSentence}
+                disabled={sentence.length === 0}
+              >
+                🔊 Speak
+              </button>
+              <button
+                type="button"
+                className="phrase-btn undo"
+                onClick={undoSentence}
+                disabled={sentence.length === 0}
+              >
+                ↶ Undo
+              </button>
+            </>
+          )}
           <button
             type="button"
             className="phrase-btn clear"
             onClick={clear}
-            disabled={phrase.length === 0}
+            disabled={activePhrase.length === 0}
           >
             Clear
           </button>
@@ -242,7 +325,7 @@ export default function NeedsBoard() {
           <button
             key={tile.id}
             type="button"
-            className={`need-tile ${spokenTile === tile.id ? 'spoken' : ''}`}
+            className={`need-tile ${tile.group ? `group-${tile.group}` : ''} ${spokenTile === tile.id ? 'spoken' : ''}`}
             onClick={() => activateTile(tile)}
           >
             <span className="need-icon">{tile.icon}</span>
