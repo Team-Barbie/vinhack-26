@@ -1,6 +1,6 @@
 # VisionLoop web app
 
-The React frontend for VisionLoop includes the Patient Board, Gaze Phrases, and Aim Trainer.
+The React frontend for VisionLoop includes the one-time eye calibration, the Patient Board, and Phrases.
 
 ## Run
 

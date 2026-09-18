@@ -2,13 +2,13 @@
 
 **Communicate with your eyes.**
 
-VisionLoop is a webcam-based communication prototype with a patient needs board, spoken phrases, and an eye-controlled aim trainer. MediaPipe face and iris tracking turns gaze into on-screen selections without dedicated eye-tracking hardware.
+VisionLoop is a webcam-based communication prototype with a patient needs board and spoken phrases, controlled with the eyes. MediaPipe face and iris tracking turns gaze into on-screen selections without dedicated eye-tracking hardware.
 
 ## What's in this repository?
 
 | Application | Location | Purpose |
 | --- | --- | --- |
-| **VisionLoop** | `web/` | React app with Patient Board, Gaze Phrases, and Aim Trainer |
+| **VisionLoop** | `web/` | React app with the Patient Board and Phrases |
 | **Standalone trainer** | Root (`src/`) | Standalone aim trainer with calibration, diagnostics, and blink or dwell firing |
 | **Python tracker** | `main.py`, `eye_tracking/` | Desktop webcam demo with tracking overlays |
 
@@ -26,7 +26,11 @@ npm install
 npm run dev
 ```
 
-Open the local URL printed by Vite. Allow camera access when using gaze features. Browser camera access requires `localhost` or HTTPS.
+Open the local URL printed by Vite and allow camera access. Browser camera access requires `localhost` or HTTPS.
+
+### Calibrate once
+
+The app opens on a one-time calibration: a dot appears in the middle, then on the left, right, top, and bottom of the screen, and you look at each until its bar fills (about 15 seconds). Those five directions drive everything: the eye remote on the Patient Board and left/right/up in Phrases. It is saved in the browser, so later visits go straight to the home screen. Use **Calibrate again** on the home screen or the board if you move the laptop or change seats. **Skip, I'll use touch** leaves every screen working by tap, mouse, and keyboard.
 
 If you already have the repository, run only `cd web`, `npm install`, and `npm run dev` from its root. No API key or environment file is required by the current app.
 
@@ -34,28 +38,16 @@ If you already have the repository, run only `cd web`, `npm install`, and `npm r
 
 Choose **Patient Board** on the home screen to access:
 
-- Essential requests such as water, food, assistance, and repositioning.
-- Comfort and urgent request categories.
-- Yes/no responses and one-tap Quick Talk phrases.
-- A sentence builder that speaks selected words.
-- **Gaze Phrases**, which narrows a phrase list using left/right gaze selections. Calibrate, look toward the group containing your phrase, and blink or dwell for about 1.1 seconds to select. Return your gaze to the center between selections. Look toward the upper screen area and blink or dwell to go back. Once a single phrase is selected, it is spoken and the list resets. A button-based test mode is also available.
+- **Needs**: water, food, the bathroom, help moving, and calling a nurse.
+- **More** and **Emergency**: comfort requests and urgent health problems.
+- **Talk**: one-tap phrases such as "Stop" or "Say that again", plus yes/no answers.
+- **Phrases**, which narrows a phrase list using left/right gaze selections. Look toward the group containing your phrase, and blink or dwell for about 1.1 seconds to select. Return your gaze to the center between selections. Look toward the upper screen area and blink or dwell to go back. Once a single phrase is selected, it is spoken and the list resets. Tapping a side works too.
 
-The regular request tiles and sentence builder use buttons; gaze selection is provided through the dedicated Gaze Phrases view.
+The **eye remote** moves a highlight between cards using the same calibration: look left, right, up, or down to move and close your eyes for about half a second to pick. Four arrows sit at the screen edges (Up, Down, Left, Right): the one your eyes are on turns white and fills as you hold the look, and tapping one moves the highlight too. The **Movement pace** menu switches between Steady and Quicker. Every card also works by tapping.
 
-The board uses bundled audio clips and browser speech synthesis. Labels such as “Call Nurse” play a message; they do not connect to a hospital dispatch service. VisionLoop is a communication prototype, not a replacement for a hospital's certified nurse-call or emergency system.
+Request cards use black-and-white Apple-style emoji, loaded from the `emoji-datasource-apple` package on jsDelivr so they look the same on every operating system. If an image can't load, the system emoji is shown instead.
 
-### Aim Trainer
-
-Choose **Aim Trainer**, allow the camera, and follow the calibration prompts. Review the calibration quality, then aim with your eyes and blink to shoot. The trainer also offers mouse input and reuse of a saved calibration.
-
-| Control | Action in the web Aim Trainer |
-| --- | --- |
-| Blink | Shoot in gaze mode |
-| Click or Space | Shoot during a round |
-| `M` | Switch mouse/gaze input; gaze requires calibration |
-| Escape | Cancel calibration or quit a round |
-
-Results include score, hits, misses, best combo, and average reaction time. Dwell firing is available in the standalone trainer below; the web Aim Trainer uses blink, click, or Space.
+The board uses bundled audio clips and browser speech synthesis. Cards such as "Call a nurse" play a message; they do not connect to a hospital dispatch service. VisionLoop is a communication prototype, not a replacement for a hospital's certified nurse-call or emergency system.
 
 For consistent tracking, use even lighting and position the camera near eye level. Keep your head steady during calibration and recalibrate after changing position.
 
@@ -149,7 +141,7 @@ The root tests exercise the standalone tracking and gameplay modules with synthe
 
 ```text
 web/
-  src/components/      Home, Patient Board, Gaze Phrases, and Aim Trainer
+  src/components/      Home, calibration, Patient Board, and Phrases
   src/hooks/           React eye-tracking integration
   src/lib/             Tracking and smoothing utilities
   public/audio/        Spoken request recordings

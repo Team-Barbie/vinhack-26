@@ -1,4 +1,4 @@
-@import url("https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Next:wght@400;500;600;700&family=Atkinson+Hyperlegible+Mono:wght@500;700&display=swap");
 
 :root {
   color-scheme: dark;
@@ -49,8 +49,8 @@
   --r-pill: 999px;
 
   /* Type */
-  --font-sans: "Manrope", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
-  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --font-sans: "Atkinson Hyperlegible Next", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "Atkinson Hyperlegible Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 
   /* Motion */
   --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
@@ -113,8 +113,8 @@ p {
 h1,
 h2,
 h3 {
-  font-weight: 800;
-  letter-spacing: -0.03em;
+  font-weight: 700;
+  letter-spacing: -0.02em;
   line-height: 1.1;
 }
 
@@ -149,4 +149,27 @@ button:disabled {
     animation-duration: 0.001ms !important;
     transition-duration: 0.001ms !important;
   }
+}
+
+/* Shared camera preview, rendered once by EyeTrackerProvider. The medium size
+   matches .eye-landmark-overlay so the calibration overlay sits on the video. */
+.tracker-cam {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  z-index: 30;
+  width: 180px;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+  border: 1px solid var(--glass-border);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  box-shadow: var(--shadow-float);
+  transform: scaleX(-1);
+  pointer-events: none;
+  transition: width var(--slow) var(--ease);
+}
+
+.tracker-cam.is-medium {
+  width: 280px;
 }

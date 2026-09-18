@@ -1,5 +1,5 @@
 // One Euro filter (Casiez et al.): heavy smoothing when the gaze is still,
-// low lag when it moves fast — better than a moving average for noisy gaze.
+// low lag when it moves fast. Better than a moving average for noisy gaze.
 class LowPass {
   private y: number | null = null
 

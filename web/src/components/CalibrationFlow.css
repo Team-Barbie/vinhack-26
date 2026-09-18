@@ -1,0 +1,152 @@
+.calib-pad {
+  display: grid;
+  width: min(360px, 100%);
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+
+.calib-pad-key {
+  display: grid;
+  min-height: 56px;
+  place-items: center;
+  border: 1px solid var(--glass-border);
+  border-radius: var(--r-md);
+  background: var(--glass-tint);
+  color: var(--text-dim);
+  font-weight: 700;
+  transition: background var(--fast) var(--ease), border-color var(--fast) var(--ease), color var(--fast) var(--ease);
+}
+
+.calib-pad-key.is-up {
+  grid-column: 2;
+}
+
+.calib-pad-key.is-left {
+  grid-column: 1;
+}
+
+.calib-pad-key.is-down {
+  grid-column: 2;
+}
+
+.calib-pad-key.is-active {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+
+
+/* ---------- Five-direction calibration (layout from prnvh's eye-remote setup) ---------- */
+
+.direction-calibration {
+  position: fixed;
+  inset: 0;
+  /* Below the camera preview (z 30) so the preview and eye overlay stay visible. */
+  z-index: 20;
+  background: rgba(6, 6, 6, 0.97);
+}
+
+.direction-copy {
+  position: absolute;
+  top: 22%;
+  left: 50%;
+  display: flex;
+  width: min(520px, calc(100% - 48px));
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  text-align: center;
+  transform: translateX(-50%);
+}
+
+.direction-calibration.at-center .direction-copy {
+  top: auto;
+  bottom: 8%;
+}
+
+.direction-copy strong {
+  color: var(--text);
+  font-size: clamp(1.6rem, 3.4vw, 2.2rem);
+  letter-spacing: -0.02em;
+}
+
+.direction-copy p {
+  min-height: 1.5em;
+  color: var(--text-dim);
+}
+
+.direction-copy progress {
+  width: 220px;
+  height: 8px;
+  accent-color: var(--accent);
+}
+
+.direction-copy-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.direction-dot {
+  position: absolute;
+  display: grid;
+  width: 70px;
+  height: 70px;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 10px var(--accent-tint), 0 0 40px var(--accent-glow);
+  color: var(--accent-ink);
+  font-size: 38px;
+  font-weight: 700;
+  transform: translate(-50%, -50%);
+}
+
+/* ---------- Eye outline drawn over the camera preview while calibrating ---------- */
+
+.eye-landmark-overlay {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  z-index: 31;
+  width: 280px;
+  aspect-ratio: 16 / 9;
+  border: 1px solid rgba(107, 217, 143, 0.65);
+  border-radius: var(--r-md);
+  pointer-events: none;
+}
+
+.eye-landmark-overlay .eye-contour,
+.eye-landmark-overlay .iris-contour {
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+}
+
+.eye-landmark-overlay .eye-contour {
+  fill: rgba(95, 184, 224, 0.16);
+  stroke: #5fb8e0;
+  stroke-width: 4px;
+}
+
+.eye-landmark-overlay .iris-contour {
+  fill: rgba(107, 217, 143, 0.28);
+  stroke: #6bd98f;
+  stroke-width: 4px;
+}
+
+.eye-landmark-overlay .iris-center {
+  fill: #fff;
+  stroke: #111;
+  stroke-width: 1px;
+  vector-effect: non-scaling-stroke;
+}
+
+.eye-landmark-overlay .eye-lock-box {
+  fill: rgba(107, 217, 143, 0.12);
+  stroke: #6bd98f;
+  stroke-dasharray: 5 3;
+  stroke-width: 3px;
+  vector-effect: non-scaling-stroke;
+}

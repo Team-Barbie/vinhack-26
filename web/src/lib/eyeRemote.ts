@@ -33,6 +33,43 @@ export function classifyDirection(p: RemoteProfile, f: number[]): Direction {
   return directionSignal(p, f).direction
 }
 
+// Where each calibration dot sits, as fractions of the viewport.
+export const DIRECTION_TARGETS: Record<Direction, [number, number]> = {
+  center: [0.5, 0.5],
+  left: [0.08, 0.5],
+  right: [0.92, 0.5],
+  up: [0.5, 0.08],
+  down: [0.5, 0.9],
+}
+
+export function profileUsable(p: RemoteProfile): boolean {
+  return profileValid(p) && DIRECTIONS.every((d) => classifyDirection(p, p[d]) === d)
+}
+
+// Screen pointer from the same five templates. Eye features move roughly
+// linearly with gaze, so fit the offset from the middle template as a mix of the
+// left-to-right and top-to-bottom feature changes (2x2 least squares), which
+// also cancels the vertical drift that horizontal looks carry and vice versa.
+export function pointerFromProfile(p: RemoteProfile, f: number[]): [number, number] | null {
+  if (f.length !== 4 || !f.every(Number.isFinite)) return null
+  const T = DIRECTION_TARGETS
+  const bx = p.right.map((v, i) => (v - p.left[i]) / (T.right[0] - T.left[0]))
+  const by = p.down.map((v, i) => (v - p.up[i]) / (T.down[1] - T.up[1]))
+  const delta = f.map((v, i) => v - p.center[i])
+  const dot = (a: number[], b: number[]) => a.reduce((s, v, i) => s + v * b[i], 0)
+  const xx = dot(bx, bx)
+  const yy = dot(by, by)
+  const xy = dot(bx, by)
+  const det = xx * yy - xy * xy
+  if (Math.abs(det) < 1e-12) return null
+  const rx = dot(delta, bx)
+  const ry = dot(delta, by)
+  const sx = (rx * yy - ry * xy) / det
+  const sy = (ry * xx - rx * xy) / det
+  const clamp = (v: number) => Math.min(1, Math.max(0, v))
+  return [clamp(T.center[0] + sx), clamp(T.center[1] + sy)]
+}
+
 export class RemoteRepeater {
   private direction: Direction = 'center'
   private nextAt = 0
