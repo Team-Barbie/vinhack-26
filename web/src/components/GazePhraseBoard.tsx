@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import type { EyeTracker } from '../hooks/useEyeTracker'
 import { directionSignal, medianFeatures, type RemoteProfile } from '../lib/eyeRemote'
+import { speak } from '../lib/speech'
 import './GazePhraseBoard.css'
 
 type GazeZone = 'left' | 'right' | 'back'
@@ -47,14 +48,6 @@ const PHRASES = [
   'Please turn me to the right',
   'I am ready to rest',
 ] as const
-
-function speak(text: string) {
-  if (!('speechSynthesis' in window)) return
-  window.speechSynthesis.cancel()
-  const utterance = new SpeechSynthesisUtterance(text)
-  utterance.rate = 0.9
-  window.speechSynthesis.speak(utterance)
-}
 
 function splitPhrases(phrases: readonly string[]) {
   const middle = Math.ceil(phrases.length / 2)

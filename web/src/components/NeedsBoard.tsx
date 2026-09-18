@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
 import { useEye } from '../hooks/EyeTrackerProvider'
+import { speak } from '../lib/speech'
 import GazePhraseBoard from './GazePhraseBoard'
 import Emoji from './Emoji'
 import EyeRemote from './EyeRemote'
@@ -78,14 +79,6 @@ function nurseTime() {
   return new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
 }
 
-function speak(text: string) {
-  if (!text || !('speechSynthesis' in window)) return
-  window.speechSynthesis.cancel()
-  const utterance = new SpeechSynthesisUtterance(text)
-  utterance.rate = 0.9
-  window.speechSynthesis.speak(utterance)
-}
-
 export default function NeedsBoard({ onExit, onRecalibrate }: { onExit: () => void; onRecalibrate: () => void }) {
   const eye = useEye()
   const [screen, setScreen] = useState<Screen>('main')
@@ -94,39 +87,7 @@ export default function NeedsBoard({ onExit, onRecalibrate }: { onExit: () => vo
   const [spokenTile, setSpokenTile] = useState<string | null>(null)
   const [spokenMessage, setSpokenMessage] = useState('')
   const [pager, setPager] = useState('')
-  const audioRef = useRef<HTMLAudioElement | null>(null)
-  const audioQueueRef = useRef<string[]>([])
-  const playNextRef = useRef<() => void>(() => undefined)
   const coolUntil = useRef(0)
-
-  useEffect(() => () => {
-    audioRef.current?.pause()
-    audioQueueRef.current = []
-  }, [])
-
-  const playAudioClips = useCallback((clipIds: string[]) => {
-    const audio = audioRef.current
-    if (!audio) return
-
-    audio.pause()
-    audioQueueRef.current = [...clipIds]
-
-    playNextRef.current = () => {
-      const clipId = audioQueueRef.current.shift()
-      if (!clipId) return
-
-      audio.src = `/audio/${clipId}.wav`
-      audio.currentTime = 0
-      audio.muted = false
-      audio.volume = 1
-      audio.load()
-      void audio.play().catch(() => {
-        audioQueueRef.current = []
-      })
-    }
-
-    playNextRef.current()
-  }, [])
 
   const flashTile = (id: string, ms: number) => {
     setSpokenTile(id)
@@ -139,18 +100,14 @@ export default function NeedsBoard({ onExit, onRecalibrate }: { onExit: () => vo
     if (performance.now() < coolUntil.current) return
     coolUntil.current = performance.now() + COOLDOWN_MS
 
-    if (tile.instant) speak(tile.phrase)
-    else {
-      playAudioClips([tile.id])
-      speak(tile.phrase)
-    }
+    speak(tile.phrase)
     setSpokenMessage(tile.phrase)
     flashTile(tile.id, 650)
     if (PAGER_IDS.has(tile.id)) setPager(`Nurse alerted at ${nurseTime()}`)
   }
 
   const answer = (value: 'yes' | 'no') => {
-    playAudioClips([`answer-${value}`])
+    speak(value === 'yes' ? 'Yes' : 'No')
     setAnswerFlash(value)
     window.setTimeout(() => setAnswerFlash((current) => (current === value ? null : current)), 500)
   }
@@ -160,13 +117,6 @@ export default function NeedsBoard({ onExit, onRecalibrate }: { onExit: () => vo
   return (
     <div ref={boardRef} className={`needs-board screen-${screen} ${screen !== 'gaze' ? 'has-eye-remote' : ''}`}>
       {pager && <div className="pager-banner" role="status">{pager}</div>}
-      <audio
-        ref={audioRef}
-        preload="auto"
-        playsInline
-        onEnded={() => playNextRef.current()}
-        onError={() => playNextRef.current()}
-      />
       <div className="board-nav">
         <button type="button" className="home-btn" onClick={onExit}>
           Home
