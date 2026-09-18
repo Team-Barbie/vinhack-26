@@ -92,8 +92,23 @@
 .remote-edge:focus-visible { outline: 3px solid var(--accent); outline-offset: 4px; }
 .remote-edge:disabled { opacity: 0.45; }
 .remote-edge-progress { position: absolute; right: 0; bottom: 0; left: 0; height: 5px; background: var(--glass-tint); }
-.remote-edge-progress::after { content: ''; display: block; width: var(--move-progress, 0%); height: 100%; background: var(--text-dim); }
-.remote-edge.is-looking .remote-edge-progress::after { background: var(--accent-ink); }
+.remote-edge-progress::after {
+  content: '';
+  display: block;
+  width: 100%;
+  height: 100%;
+  transform: scaleX(0);
+  transform-origin: left center;
+  background: var(--text-dim);
+}
+.remote-edge.is-looking .remote-edge-progress::after {
+  background: var(--accent-ink);
+  animation: remote-fill var(--fill-ms, 450ms) linear forwards;
+}
+@keyframes remote-fill {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
 @media (max-width: 900px) {
   .has-eye-remote { padding-inline: 8px; }
   .has-eye-remote .tile-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
@@ -122,6 +137,10 @@
 
 @media (prefers-reduced-motion: reduce) {
   .needs-board button { transition: none; }
+  .remote-edge.is-looking .remote-edge-progress::after {
+    animation: none;
+    transform: scaleX(1);
+  }
 }
 
 @keyframes screen-in {

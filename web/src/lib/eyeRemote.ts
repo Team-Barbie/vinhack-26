@@ -11,8 +11,18 @@ export function profileValid(p: RemoteProfile): boolean {
     DIRECTIONS.slice(1).every((d) => Math.hypot(...p[d].map((v, i) => v - p.center[i])) > 0.008)
 }
 
+export const MOVE_ENTER = 0.36
+export const MOVE_ENTER_SETTLE = 0.46
+export const SCREEN_SETTLE_MS = 1000
+
 // Measure progress along each learned direction, not proximity to its endpoint.
-export function directionSignal(p: RemoteProfile, f: number[]): { direction: Direction; strength: number } {
+// `held` adds hysteresis so a noisy frame does not drop back to center.
+export function directionSignal(
+  p: RemoteProfile,
+  f: number[],
+  held: Direction = 'center',
+  enter = MOVE_ENTER,
+): { direction: Direction; strength: number } {
   if (f.length !== 4 || !f.every(Number.isFinite)) return { direction: 'center', strength: 0 }
   const scales = p.center.map((_, i) => Math.max(0.008,
     Math.max(...DIRECTIONS.map((d) => p[d][i])) - Math.min(...DIRECTIONS.map((d) => p[d][i]))))
@@ -25,12 +35,16 @@ export function directionSignal(p: RemoteProfile, f: number[]): { direction: Dir
     return { d, strength, residual, score: strength - residual * 0.5 }
   }).sort((a, b) => b.score - a.score)
   const best = ranked[0]
-  const valid = best.strength >= 0.3 && best.strength <= 2.5 && best.residual < 0.65 && best.score - ranked[1].score >= 0.12
+  const stay = Math.max(0.24, enter - 0.12)
+  if (held !== 'center' && best.d === held && best.strength >= stay && best.strength <= 2.5 && best.residual < 0.8) {
+    return { direction: held, strength: Math.max(0, best.strength) }
+  }
+  const valid = best.strength >= enter && best.strength <= 2.5 && best.residual < 0.65 && best.score - ranked[1].score >= 0.12
   return { direction: valid ? best.d : 'center', strength: Math.max(0, best.strength) }
 }
 
 export function classifyDirection(p: RemoteProfile, f: number[]): Direction {
-  return directionSignal(p, f).direction
+  return directionSignal(p, f, 'center', 0.3).direction
 }
 
 // Where each calibration dot sits, as fractions of the viewport.
@@ -70,6 +84,34 @@ export function pointerFromProfile(p: RemoteProfile, f: number[]): [number, numb
   return [clamp(T.center[0] + sx), clamp(T.center[1] + sy)]
 }
 
+export const MOVE_HOLD_MS = 450
+export const MOVE_HOLD_SETTLE_MS = 620
+export const MOVE_REPEAT_MS = 900
+
+// Ignore one-frame flips so the overlay highlight and fill bar stay put.
+export class DirectionHold {
+  private held: Direction = 'center'
+  private pending: Direction = 'center'
+  private pendingAt = 0
+  get value(): Direction { return this.held }
+  reset(): void { this.held = 'center'; this.pending = 'center'; this.pendingAt = 0 }
+  update(raw: Direction, now: number): Direction {
+    if (raw === this.held) {
+      this.pending = raw
+      this.pendingAt = now
+      return this.held
+    }
+    if (raw !== this.pending) {
+      this.pending = raw
+      this.pendingAt = now
+      return this.held
+    }
+    const wait = raw === 'center' ? 150 : this.held === 'center' ? 110 : 100
+    if (now - this.pendingAt >= wait) this.held = raw
+    return this.held
+  }
+}
+
 export class RemoteRepeater {
   private direction: Direction = 'center'
   private nextAt = 0
@@ -77,24 +119,25 @@ export class RemoteRepeater {
   private waitStartedAt = 0
   private initialMs: number
   private repeatMs: number
-  constructor(initialMs = 420, repeatMs = 950) { this.initialMs = initialMs; this.repeatMs = repeatMs }
+  constructor(initialMs = MOVE_HOLD_MS, repeatMs = MOVE_REPEAT_MS) { this.initialMs = initialMs; this.repeatMs = repeatMs }
+  get repeating(): boolean { return this.direction !== 'center' && this.neutralAt === null && this.nextAt - this.waitStartedAt >= this.repeatMs - 1 }
   progress(now: number): number {
-    if (this.direction === 'center' || this.neutralAt !== null) return 0
+    if (this.direction === 'center') return 0
     return Math.min(1, Math.max(0, (now - this.waitStartedAt) / Math.max(1, this.nextAt - this.waitStartedAt)))
   }
   reset(): void { this.direction = 'center'; this.nextAt = 0; this.neutralAt = null }
-  update(direction: Direction, now: number): Direction | null {
+  update(direction: Direction, now: number, holdMs = this.initialMs): Direction | null {
     if (direction === 'center') {
       this.neutralAt ??= now
-      if (now - this.neutralAt >= 100) this.reset()
+      if (now - this.neutralAt >= 160) this.reset()
       return null
     }
-    if (this.neutralAt !== null && now - this.neutralAt >= 100) this.reset()
+    if (this.neutralAt !== null && now - this.neutralAt >= 160) this.reset()
     this.neutralAt = null
     if (direction !== this.direction) {
       this.direction = direction
       this.waitStartedAt = now
-      this.nextAt = now + this.initialMs
+      this.nextAt = now + holdMs
     }
     if (now < this.nextAt) return null
     this.waitStartedAt = now
@@ -124,21 +167,43 @@ export class RemoteBlink {
   private closedAt: number | null = null
   private armed = false
   private selected = ''
-  reset(): void { this.closedAt = null; this.armed = false; this.openAt = 0; this.selected = '' }
-  update(left: number, right: number, now: number, selected: string): string | null {
-    if (Math.max(left, right) < 0.3) {
+  private peak = 0
+  get holding(): boolean { return this.closedAt !== null }
+  reset(): void { this.closedAt = null; this.armed = false; this.openAt = 0; this.selected = ''; this.peak = 0 }
+  // faceLost: keep a close in progress when lids hide the landmarks.
+  update(left: number, right: number, now: number, selected: string, faceLost = false): string | null {
+    const score = Math.max(left, right)
+    const closed = this.closedAt !== null
+      ? faceLost || score > 0.32
+      : !faceLost && score > 0.42
+    const opened = !faceLost && score < 0.2
+
+    if (opened) {
       if (this.closedAt !== null) {
         const duration = now - this.closedAt
-        const hit = this.armed && duration >= 280 && duration <= 1000 && selected === this.selected ? selected : null
-        this.reset()
+        const hit = this.armed && this.peak >= 0.48 && duration >= 280 && duration <= 1100 && selected === this.selected
+          ? selected
+          : null
+        this.closedAt = null
+        this.peak = 0
+        this.selected = ''
         this.openAt = now
+        this.armed = true
         return hit
       }
       if (!this.openAt) this.openAt = now
-      if (now - this.openAt >= 350) this.armed = true
-    } else if (Math.min(left, right) > 0.55 && this.closedAt === null) {
-      this.closedAt = now
-      this.selected = selected
+      if (now - this.openAt >= 200) this.armed = true
+      return null
+    }
+
+    if (closed) {
+      if (this.closedAt === null) {
+        this.closedAt = now
+        this.selected = selected
+        this.peak = score
+      } else {
+        this.peak = Math.max(this.peak, faceLost ? 0.7 : score)
+      }
     }
     return null
   }
