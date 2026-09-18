@@ -58,8 +58,9 @@ function speak(text: string) {
 }
 
 export default function NeedsBoard() {
-  const [screen, setScreen] = useState<Screen>('main')
+  const [screen, setScreen] = useState<Screen>('urgent')
   const [phrase, setPhrase] = useState<NeedTile[]>([])
+  const [answerFlash, setAnswerFlash] = useState<'yes' | 'no' | null>(null)
 
   const addTile = (tile: NeedTile) => {
     setPhrase((prev) => [...prev, tile])
@@ -70,6 +71,12 @@ export default function NeedsBoard() {
   const speakPhrase = () => {
     const text = phrase.map((t) => t.phrase).join('. ')
     speak(text)
+  }
+
+  const answer = (value: 'yes' | 'no') => {
+    speak(value === 'yes' ? 'Yes' : 'No')
+    setAnswerFlash(value)
+    window.setTimeout(() => setAnswerFlash((current) => (current === value ? null : current)), 500)
   }
 
   const { title, tiles } = SCREENS[screen]
@@ -95,11 +102,31 @@ export default function NeedsBoard() {
         </div>
         <button
           type="button"
-          className="emergency-btn"
+          className={`emergency-btn ${screen === 'urgent' ? 'active' : ''}`}
           onClick={() => setScreen('urgent')}
         >
           🚨 Emergency
         </button>
+      </div>
+
+      <div className="quick-answer">
+        <span className="quick-answer-label">Answering a question?</span>
+        <div className="quick-answer-buttons">
+          <button
+            type="button"
+            className={`answer-btn answer-yes ${answerFlash === 'yes' ? 'flash' : ''}`}
+            onClick={() => answer('yes')}
+          >
+            ✅ Yes
+          </button>
+          <button
+            type="button"
+            className={`answer-btn answer-no ${answerFlash === 'no' ? 'flash' : ''}`}
+            onClick={() => answer('no')}
+          >
+            ❌ No
+          </button>
+        </div>
       </div>
 
       <div className="phrase-bar">
@@ -107,7 +134,12 @@ export default function NeedsBoard() {
           {phrase.length === 0 ? (
             <span className="phrase-placeholder">Tap icons below to build a phrase…</span>
           ) : (
-            phrase.map((t) => `${t.icon} ${t.phrase}`).join('  ·  ')
+            phrase.map((t, i) => (
+              <span key={`${t.id}-${i}`} className="phrase-chip">
+                <span className="phrase-chip-icon">{t.icon}</span>
+                {t.phrase}
+              </span>
+            ))
           )}
         </div>
         <div className="phrase-actions">
