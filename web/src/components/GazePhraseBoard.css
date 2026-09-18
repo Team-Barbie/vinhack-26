@@ -77,39 +77,41 @@
   color: var(--signal);
 }
 
-.gaze-review-target {
-  position: fixed;
-  z-index: 1;
+.gaze-remote-pad {
+  display: grid;
+  width: min(400px, 100%);
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin: 24px auto;
+}
+
+.gaze-remote-key {
+  display: grid;
+  min-height: 64px;
+  place-items: center;
+  border: 1px solid var(--glass-border);
+  border-radius: var(--r-md);
+  background: var(--glass-tint);
   color: var(--text-dim);
-  font-size: 0.78rem;
   font-weight: 800;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
+  transition: background var(--fast) var(--ease), border-color var(--fast) var(--ease),
+    color var(--fast) var(--ease), transform var(--fast) var(--ease);
 }
 
-.gaze-review-left { left: 30px; top: 50%; }
-.gaze-review-right { right: 30px; top: 50%; }
-.gaze-review-up { left: 50%; top: 26px; }
-.gaze-review-down { bottom: 26px; left: 50%; }
-
-.gaze-debug-point.is-review {
-  z-index: 4;
-  width: 28px;
-  height: 28px;
-  box-shadow: 0 0 0 8px rgba(107, 217, 143, 0.18), 0 0 28px rgba(107, 217, 143, 0.9);
+.gaze-remote-key.is-up {
+  grid-column: 2;
 }
 
-.gaze-debug-point {
-  position: fixed;
-  z-index: 20;
-  width: 24px;
-  height: 24px;
-  margin: -12px 0 0 -12px;
-  border: 3px solid #ffffff;
-  border-radius: 50%;
-  background: rgba(107, 217, 143, 0.45);
-  box-shadow: 0 0 0 7px rgba(107, 217, 143, 0.14), 0 0 22px rgba(107, 217, 143, 0.8);
-  pointer-events: none;
+.gaze-remote-key.is-left {
+  grid-column: 1;
+}
+
+.gaze-remote-key.is-active {
+  border-color: var(--signal);
+  background: rgba(107, 217, 143, 0.2);
+  box-shadow: 0 0 24px rgba(107, 217, 143, 0.25);
+  color: var(--signal);
+  transform: scale(1.04);
 }
 
 .gaze-phrase-setup {

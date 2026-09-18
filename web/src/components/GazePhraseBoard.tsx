@@ -5,6 +5,7 @@ import { Calibration, FaceChip } from './AimGame'
 import './GazePhraseBoard.css'
 
 type GazeZone = 'left' | 'right' | 'back'
+type RemoteDirection = GazeZone | 'neutral'
 type GazePhase = 'setup' | 'calibrating' | 'review' | 'selecting'
 type InputMode = 'gaze' | 'buttons'
 
@@ -64,6 +65,14 @@ function splitPhrases(phrases: readonly string[]) {
   return [phrases.slice(0, middle), phrases.slice(middle)] as const
 }
 
+function remoteDirectionFor(screen: { x: number; y: number } | null): RemoteDirection | null {
+  if (!screen) return null
+  if (screen.y < window.innerHeight * 0.18) return 'back'
+  if (screen.x < window.innerWidth * 0.43) return 'left'
+  if (screen.x > window.innerWidth * 0.57) return 'right'
+  return 'neutral'
+}
+
 export default function GazePhraseBoard() {
   const eye = useEyeTracker()
   const { videoRef, status, error, faceFound, calibrated, snapshotRef, setCalibration, onBlink } = eye
@@ -76,7 +85,7 @@ export default function GazePhraseBoard() {
   const [lastSpoken, setLastSpoken] = useState('')
   const [calibrationError, setCalibrationError] = useState(0)
   const [awaitingNeutral, setAwaitingNeutral] = useState(false)
-  const [gazePoint, setGazePoint] = useState<{ x: number; y: number } | null>(null)
+  const [remoteDirection, setRemoteDirection] = useState<RemoteDirection | null>(null)
   const dwellRef = useRef<{ zone: GazeZone | null; startedAt: number }>({ zone: null, startedAt: 0 })
   const lockedRef = useRef(false)
   const needsNeutralRef = useRef(false)
@@ -151,7 +160,7 @@ export default function GazePhraseBoard() {
     let raf = 0
     const updatePreview = () => {
       const frame = snapshotRef.current
-      setGazePoint(frame.faceFound ? frame.screen : null)
+      setRemoteDirection(frame.faceFound ? remoteDirectionFor(frame.screen) : null)
       raf = requestAnimationFrame(updatePreview)
     }
     raf = requestAnimationFrame(updatePreview)
@@ -164,12 +173,6 @@ export default function GazePhraseBoard() {
     const timer = window.setInterval(() => {
       const frame = snapshotRef.current
       let zone: GazeZone | null = null
-
-      if (frame.faceFound && frame.screen) {
-        setGazePoint(frame.screen)
-      } else {
-        setGazePoint(null)
-      }
 
       // Keep the highlighted zone while the eyes are closed. BlinkDetector
       // fires on reopen, so clearing it here would leave nothing to confirm.
@@ -185,9 +188,8 @@ export default function GazePhraseBoard() {
       }
 
       if (frame.faceFound && frame.screen) {
-        if (frame.screen.y < window.innerHeight * 0.16) zone = 'back'
-        else if (frame.screen.x < window.innerWidth * 0.43) zone = 'left'
-        else if (frame.screen.x > window.innerWidth * 0.57) zone = 'right'
+        const direction = remoteDirectionFor(frame.screen)
+        if (direction !== 'neutral') zone = direction
       }
 
       const now = performance.now()
@@ -283,15 +285,18 @@ export default function GazePhraseBoard() {
     return (
       <section className="gaze-phrase-board gaze-calibration-review" aria-label="Check gaze calibration">
         <video ref={videoRef} className="gaze-camera" muted playsInline aria-hidden="true" />
-        {gazePoint && (
-          <span className="gaze-debug-point is-review" style={{ left: gazePoint.x, top: gazePoint.y }} aria-hidden="true" />
-        )}
         <div className="gaze-review-card">
           <span className="gaze-setup-eyebrow">Calibration check</span>
-          <h2>Follow the green dot with your eyes.</h2>
+          <h2>Test the gaze remote.</h2>
           <p>
-            Look left, right, up, and down. The dot should follow you closely before you use blink selection.
+            Look left, right, up, then back to the center. Each direction should light up without moving a cursor.
           </p>
+          <div className="gaze-remote-pad" aria-live="polite">
+            <span className={`gaze-remote-key is-up ${remoteDirection === 'back' ? 'is-active' : ''}`}>↑ Back</span>
+            <span className={`gaze-remote-key is-left ${remoteDirection === 'left' ? 'is-active' : ''}`}>← Left</span>
+            <span className={`gaze-remote-key is-center ${remoteDirection === 'neutral' ? 'is-active' : ''}`}>Center</span>
+            <span className={`gaze-remote-key is-right ${remoteDirection === 'right' ? 'is-active' : ''}`}>Right →</span>
+          </div>
           <div className="gaze-review-quality">
             <span>Tracking quality</span>
             <strong>{quality}</strong>
@@ -305,10 +310,6 @@ export default function GazePhraseBoard() {
             </button>
           </div>
         </div>
-        <span className="gaze-review-target gaze-review-left">Look left</span>
-        <span className="gaze-review-target gaze-review-right">Look right</span>
-        <span className="gaze-review-target gaze-review-up">Look up</span>
-        <span className="gaze-review-target gaze-review-down">Look down</span>
       </section>
     )
   }
@@ -335,13 +336,6 @@ export default function GazePhraseBoard() {
   return (
     <section className="gaze-phrase-board" aria-label="Gaze phrase selector">
       <video ref={videoRef} className="gaze-camera" muted playsInline aria-hidden="true" />
-      {inputMode === 'gaze' && gazePoint && (
-        <span
-          className="gaze-debug-point"
-          style={{ left: gazePoint.x, top: gazePoint.y }}
-          aria-hidden="true"
-        />
-      )}
 
       <div className="gaze-phrase-toolbar">
         <button type="button" className={`gaze-back ${activeZone === 'back' ? 'dwelling' : ''}`} onClick={goBack} disabled={history.length === 0}>
