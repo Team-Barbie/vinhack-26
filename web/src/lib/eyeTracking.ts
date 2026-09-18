@@ -1,250 +1,453 @@
 import type { FaceLandmarkerResult, NormalizedLandmark } from '@mediapipe/tasks-vision'
 
-// Browser port of eye_tracking/tracker.py + constants.py — keep the two in sync.
-
 export type Vec2 = [number, number]
 
 export const CALIBRATION_TARGETS: Vec2[] = [
-  [0.12, 0.12],
-  [0.5, 0.12],
-  [0.88, 0.12],
-  [0.12, 0.5],
-  [0.5, 0.5],
-  [0.88, 0.5],
-  [0.12, 0.88],
-  [0.5, 0.88],
-  [0.88, 0.88],
+  [0.08, 0.1],
+  [0.5, 0.1],
+  [0.92, 0.1],
+  [0.08, 0.38],
+  [0.5, 0.38],
+  [0.92, 0.38],
+  [0.08, 0.66],
+  [0.5, 0.66],
+  [0.92, 0.66],
+  [0.08, 0.9],
+  [0.5, 0.9],
+  [0.92, 0.9],
 ]
 
-const BLINK_ON = 0.45
-const BLINK_OFF = 0.28
-const EAR_CLOSED = 0.18
-const EAR_OPEN = 0.22
-
-interface EyeSpec {
-  outer: number
-  inner: number
-  upper: number
-  lower: number
-  irisCenter: number
-  irisRing: number[]
-  earVertical: [number, number][]
-  earHorizontal: [number, number]
-  blinkBlendshape: string
-}
-
-const LEFT_EYE: EyeSpec = {
+const LEFT_EYE = {
   outer: 263,
   inner: 362,
   upper: 386,
   lower: 374,
-  irisCenter: 473,
-  irisRing: [474, 475, 476, 477],
-  earVertical: [
-    [386, 374],
-    [385, 380],
-  ],
-  earHorizontal: [263, 362],
+  iris: [473, 474, 475, 476, 477],
   blinkBlendshape: 'eyeBlinkLeft',
 }
 
-const RIGHT_EYE: EyeSpec = {
+const RIGHT_EYE = {
   outer: 33,
   inner: 133,
   upper: 159,
   lower: 145,
-  irisCenter: 468,
-  irisRing: [469, 470, 471, 472],
-  earVertical: [
-    [159, 145],
-    [158, 153],
-  ],
-  earHorizontal: [33, 133],
+  iris: [468, 469, 470, 471, 472],
   blinkBlendshape: 'eyeBlinkRight',
 }
 
+const EPS = 1e-6
 const clamp01 = (v: number) => Math.min(1, Math.max(0, v))
+const clampShift = (v: number) => Math.min(0.05, Math.max(-0.05, v))
 
-// The Python tracker runs on a selfie-mirrored frame; mirroring x here keeps
-// the iris and blendshape gaze terms agreeing in sign exactly as they do there.
-function pt(landmarks: NormalizedLandmark[], index: number): Vec2 {
-  const lm = landmarks[index]
-  return [1 - lm.x, lm.y]
+function lmPx(landmarks: NormalizedLandmark[], index: number, vw: number, vh: number): Vec2 {
+  const p = landmarks[index]
+  return [p.x * vw, p.y * vh]
+}
+
+function avgIris(landmarks: NormalizedLandmark[], idxs: number[], vw: number, vh: number): Vec2 {
+  let x = 0
+  let y = 0
+  let n = 0
+  for (const i of idxs) {
+    const p = landmarks[i]
+    if (!p) continue
+    x += p.x * vw
+    y += p.y * vh
+    n += 1
+  }
+  return [x / (n || 1), y / (n || 1)]
 }
 
 function dist(a: Vec2, b: Vec2): number {
   return Math.hypot(a[0] - b[0], a[1] - b[1])
 }
 
-interface EyeSample {
-  gaze: Vec2
-  ear: number
-  blink: number
-  closed: boolean
+function median(values: number[]): number {
+  if (values.length === 0) return 0
+  const s = values.slice().sort((a, b) => a - b)
+  return s[Math.floor(s.length / 2)]
 }
 
-function sampleEye(landmarks: NormalizedLandmark[], blends: Map<string, number>, spec: EyeSpec): EyeSample {
-  const iris = pt(landmarks, spec.irisCenter)
-  const inner = pt(landmarks, spec.inner)
-  const outer = pt(landmarks, spec.outer)
-  const upper = pt(landmarks, spec.upper)
-  const lower = pt(landmarks, spec.lower)
-
-  const leftX = Math.min(inner[0], outer[0])
-  const rightX = Math.max(inner[0], outer[0])
-  const topY = Math.min(upper[1], lower[1])
-  const botY = Math.max(upper[1], lower[1])
-  const gx = clamp01((iris[0] - leftX) / (rightX - leftX + 1e-6))
-  const gy = clamp01((iris[1] - topY) / (botY - topY + 1e-6))
-
-  const vertical = spec.earVertical.reduce(
-    (sum, [a, b]) => sum + dist(pt(landmarks, a), pt(landmarks, b)),
-    0,
-  )
-  const horizontal = dist(pt(landmarks, spec.earHorizontal[0]), pt(landmarks, spec.earHorizontal[1]))
-  const ear = horizontal < 1e-6 ? 0 : vertical / (2 * horizontal)
-  const blink = blends.get(spec.blinkBlendshape) ?? 0
-
-  return { gaze: [gx, gy], ear, blink, closed: blink >= BLINK_ON || ear <= EAR_CLOSED }
+// Canthi stay put when you look up/down. Eyelids do not — using them as the
+// Y origin/scale cancels vertical gaze.
+function irisInEye(landmarks: NormalizedLandmark[], spec: typeof LEFT_EYE, vw: number, vh: number): Vec2 {
+  const iris = avgIris(landmarks, spec.iris, vw, vh)
+  const inner = lmPx(landmarks, spec.inner, vw, vh)
+  const outer = lmPx(landmarks, spec.outer, vw, vh)
+  const origin: Vec2 = [(inner[0] + outer[0]) / 2, (inner[1] + outer[1]) / 2]
+  let axisX: Vec2 = [inner[0] - outer[0], inner[1] - outer[1]]
+  const eyeW = Math.hypot(axisX[0], axisX[1]) || 1
+  axisX = [axisX[0] / eyeW, axisX[1] / eyeW]
+  if (axisX[0] < 0) axisX = [-axisX[0], -axisX[1]]
+  let axisY: Vec2 = [-axisX[1], axisX[0]]
+  if (axisY[1] < 0) axisY = [-axisY[0], -axisY[1]]
+  const v: Vec2 = [iris[0] - origin[0], iris[1] - origin[1]]
+  return [
+    (v[0] * axisX[0] + v[1] * axisX[1]) / eyeW,
+    (v[0] * axisY[0] + v[1] * axisY[1]) / eyeW,
+  ]
 }
 
-function blendshapeGaze(blends: Map<string, number>): Vec2 {
-  const b = (name: string) => blends.get(name) ?? 0
-  const lookLeft = (b('eyeLookInLeft') + b('eyeLookOutRight')) / 2
-  const lookRight = (b('eyeLookOutLeft') + b('eyeLookInRight')) / 2
-  const lookUp = (b('eyeLookUpLeft') + b('eyeLookUpRight')) / 2
-  const lookDown = (b('eyeLookDownLeft') + b('eyeLookDownRight')) / 2
-  return [clamp01(0.5 + 0.55 * (lookRight - lookLeft)), clamp01(0.5 + 0.55 * (lookDown - lookUp))]
+function earOf(landmarks: NormalizedLandmark[], spec: typeof LEFT_EYE, vw: number, vh: number): number {
+  const upper = lmPx(landmarks, spec.upper, vw, vh)
+  const lower = lmPx(landmarks, spec.lower, vw, vh)
+  const inner = lmPx(landmarks, spec.inner, vw, vh)
+  const outer = lmPx(landmarks, spec.outer, vw, vh)
+  return dist(upper, lower) / (dist(inner, outer) || 1e-6)
+}
+
+function earToBlink(ear: number): number {
+  const open = 0.28
+  const closed = 0.12
+  return Math.min(1, Math.max(0, (open - ear) / (open - closed)))
+}
+
+function blendScore(blends: Map<string, number>, name: string): number {
+  return blends.get(name) ?? 0
 }
 
 export interface GazeFrame {
   faceFound: boolean
   gaze: Vec2 | null
+  features: number[] | null
   bothClosed: boolean
   eyesOpen: boolean
+  blinkL: number
+  blinkR: number
+  quality: number
 }
 
 export class GazeTracker {
-  private ema: Vec2 | null = null
-
-  reset() {
-    this.ema = null
-  }
-
-  update(result: FaceLandmarkerResult | null, faceIndex = 0): GazeFrame {
+  update(result: FaceLandmarkerResult | null, faceIndex = 0, vw = 1280, vh = 720): GazeFrame {
     const landmarks = result?.faceLandmarks?.[faceIndex]
-    if (!landmarks) return { faceFound: false, gaze: this.ema, bothClosed: false, eyesOpen: false }
+    if (!result || !landmarks || landmarks.length < 478) {
+      return {
+        faceFound: false,
+        gaze: null,
+        features: null,
+        bothClosed: false,
+        eyesOpen: false,
+        blinkL: 0,
+        blinkR: 0,
+        quality: 0,
+      }
+    }
 
     const blends = new Map<string, number>()
     for (const c of result.faceBlendshapes?.[faceIndex]?.categories ?? []) blends.set(c.categoryName, c.score)
 
-    const left = sampleEye(landmarks, blends, LEFT_EYE)
-    const right = sampleEye(landmarks, blends, RIGHT_EYE)
-    const bothClosed = left.closed && right.closed
-    const ear = (left.ear + right.ear) / 2
-    const eyesOpen = !bothClosed && (left.blink + right.blink) / 2 < BLINK_OFF && ear > EAR_OPEN
-
-    const iris: Vec2 = [(left.gaze[0] + right.gaze[0]) / 2, (left.gaze[1] + right.gaze[1]) / 2]
-    const blend = blendshapeGaze(blends)
-    let raw: Vec2 = [0.65 * iris[0] + 0.35 * blend[0], 0.65 * iris[1] + 0.35 * blend[1]]
-    if (bothClosed && this.ema) raw = this.ema
-
-    this.ema = this.ema
-      ? [0.35 * raw[0] + 0.65 * this.ema[0], 0.35 * raw[1] + 0.65 * this.ema[1]]
-      : raw
-
-    return { faceFound: true, gaze: this.ema, bothClosed, eyesOpen }
-  }
-}
-
-// Fires once per deliberate blink: eyes must close, then fully reopen within
-// maxClosedMs. Long closes (resting eyes) are ignored, and a cooldown stops
-// one blink from registering twice.
-export class BlinkDetector {
-  private closedAt: number | null = null
-  private lastFired = -Infinity
-  private minClosedMs: number
-  private maxClosedMs: number
-  private cooldownMs: number
-
-  constructor(minClosedMs = 60, maxClosedMs = 650, cooldownMs = 500) {
-    this.minClosedMs = minClosedMs
-    this.maxClosedMs = maxClosedMs
-    this.cooldownMs = cooldownMs
-  }
-
-  update(frame: GazeFrame, now: number): boolean {
-    if (!frame.faceFound) {
-      this.closedAt = null
-      return false
+    const left = irisInEye(landmarks, LEFT_EYE, vw, vh)
+    const right = irisInEye(landmarks, RIGHT_EYE, vw, vh)
+    const features = [left[0], left[1], right[0], right[1]]
+    if (!features.every(Number.isFinite)) {
+      return {
+        faceFound: false,
+        gaze: null,
+        features: null,
+        bothClosed: false,
+        eyesOpen: false,
+        blinkL: 0,
+        blinkR: 0,
+        quality: 0,
+      }
     }
-    if (frame.bothClosed) {
-      if (this.closedAt === null) this.closedAt = now
-      return false
-    }
-    if (this.closedAt === null || !frame.eyesOpen) return false
 
-    const closedFor = now - this.closedAt
-    this.closedAt = null
-    if (closedFor < this.minClosedMs || closedFor > this.maxClosedMs) return false
-    if (now - this.lastFired < this.cooldownMs) return false
-    this.lastFired = now
-    return true
+    const earL = earToBlink(earOf(landmarks, LEFT_EYE, vw, vh))
+    const earR = earToBlink(earOf(landmarks, RIGHT_EYE, vw, vh))
+    const blinkL = Math.max(blendScore(blends, LEFT_EYE.blinkBlendshape), earL)
+    const blinkR = Math.max(blendScore(blends, RIGHT_EYE.blinkBlendshape), earR)
+    const lid = Math.max(blinkL, blinkR)
+    const bothClosed = lid >= 0.55
+    const eyesOpen = lid < 0.22
+
+    return {
+      faceFound: true,
+      gaze: [(left[0] + right[0]) / 2, (left[1] + right[1]) / 2],
+      features,
+      bothClosed,
+      eyesOpen,
+      blinkL,
+      blinkR,
+      quality: Math.max(0.25, 1 - Math.min(1, lid)),
+    }
   }
 }
 
 export interface CalibrationSample {
-  gaze: Vec2
+  features: number[]
   target: Vec2
 }
 
+type Knot = { f: number; t: number }
+type Local = { gx: number; gy: number; dx: number; dy: number }
+
 export interface CalibrationModel {
+  version: 3
   wx: number[]
-  wy: number[]
+  yKnots: Knot[]
+  locals: Local[]
+  means: number[]
+  stds: number[]
   error: number
 }
 
-const polyFeatures = ([gx, gy]: Vec2) => [1, gx, gy, gx * gy, gx * gx, gy * gy]
+function gyOf(features: number[]): number {
+  return (features[1] + features[3]) / 2
+}
 
-// Least squares via normal equations; the tiny ridge keeps it solvable when
-// the patient's gaze range is narrow and the features become near-collinear.
-function solveLeastSquares(rows: number[][], targets: number[], ridge = 1e-6): number[] {
-  const n = rows[0].length
-  const a = Array.from({ length: n }, (_, i) =>
-    Array.from({ length: n + 1 }, (_, j) => {
-      if (j === n) return rows.reduce((s, r, k) => s + r[i] * targets[k], 0)
-      return rows.reduce((s, r) => s + r[i] * r[j], 0) + (i === j ? ridge : 0)
-    }),
-  )
-  for (let col = 0; col < n; col++) {
-    let pivot = col
-    for (let r = col + 1; r < n; r++) if (Math.abs(a[r][col]) > Math.abs(a[pivot][col])) pivot = r
-    ;[a[col], a[pivot]] = [a[pivot], a[col]]
-    const div = a[col][col] || 1e-12
-    for (let j = col; j <= n; j++) a[col][j] /= div
+function gxOf(features: number[]): number {
+  return (features[0] + features[2]) / 2
+}
+
+function zscore(features: number[], means: number[], stds: number[]): number[] {
+  return features.map((v, i) => (v - means[i]) / stds[i])
+}
+
+function designX(features: number[], means: number[], stds: number[]): number[] {
+  const z = zscore(features, means, stds)
+  const gx = (z[0] + z[2]) / 2
+  return [1, gx, z[0], z[2]]
+}
+
+function solveLinearSystem(A: number[][], b: number[]): number[] {
+  const n = b.length
+  const M = A.map((row, i) => {
+    const copy = row.slice()
+    copy.push(b[i])
+    return copy
+  })
+  for (let i = 0; i < n; i++) {
+    let maxRow = i
+    for (let r = i + 1; r < n; r++) {
+      if (Math.abs(M[r][i]) > Math.abs(M[maxRow][i])) maxRow = r
+    }
+    ;[M[i], M[maxRow]] = [M[maxRow], M[i]]
+    const pivot = M[i][i]
+    if (Math.abs(pivot) < 1e-12) continue
+    const inv = 1 / pivot
+    for (let j = i; j <= n; j++) M[i][j] *= inv
     for (let r = 0; r < n; r++) {
-      if (r === col) continue
-      const factor = a[r][col]
-      for (let j = col; j <= n; j++) a[r][j] -= factor * a[col][j]
+      if (r === i) continue
+      const factor = M[r][i]
+      if (factor === 0) continue
+      for (let j = i; j <= n; j++) M[r][j] -= factor * M[i][j]
     }
   }
-  return a.map((row) => row[n])
+  return M.map((row) => row[n])
+}
+
+function ridgeFit(X: number[][], y: number[], lambda: number): number[] {
+  const m = X.length
+  const p = X[0].length
+  const XtX: number[][] = Array.from({ length: p }, () => Array(p).fill(0))
+  const Xty = Array(p).fill(0)
+  for (let i = 0; i < m; i++) {
+    const row = X[i]
+    const yi = y[i]
+    for (let a = 0; a < p; a++) {
+      Xty[a] += row[a] * yi
+      const ra = row[a]
+      const dest = XtX[a]
+      for (let b = a; b < p; b++) dest[b] += ra * row[b]
+    }
+  }
+  for (let a = 0; a < p; a++) {
+    for (let b = 0; b < a; b++) XtX[a][b] = XtX[b][a]
+    XtX[a][a] += a === 0 ? EPS : lambda
+  }
+  const weights = solveLinearSystem(XtX, Xty)
+  if (weights.some((w) => !Number.isFinite(w))) throw new Error('Could not fit gaze model')
+  return weights
 }
 
 const dot = (a: number[], b: number[]) => a.reduce((s, v, i) => s + v * b[i], 0)
 
-export function fitCalibration(samples: CalibrationSample[]): CalibrationModel | null {
-  if (samples.length < 6) return null
-  const rows = samples.map((s) => polyFeatures(s.gaze))
-  const wx = solveLeastSquares(rows, samples.map((s) => s.target[0]))
-  const wy = solveLeastSquares(rows, samples.map((s) => s.target[1]))
-  const error =
-    samples.reduce((sum, s, i) => sum + Math.hypot(dot(rows[i], wx) - s.target[0], dot(rows[i], wy) - s.target[1]), 0) /
-    samples.length
-  return { wx, wy, error }
+function interp1d(knots: Knot[], q: number): number {
+  if (knots.length === 0) return 0.5
+  if (knots.length === 1) return knots[0].t
+  const xs = knots.map((k) => k.f)
+  const ys = knots.map((k) => k.t)
+  const last = xs.length - 1
+  const lerp = (i: number, x: number) => {
+    const dx = xs[i + 1] - xs[i]
+    if (Math.abs(dx) < 1e-12) return ys[i]
+    return ys[i] + ((x - xs[i]) / dx) * (ys[i + 1] - ys[i])
+  }
+  if (q <= xs[0]) return lerp(0, q)
+  if (q >= xs[last]) return lerp(last - 1, q)
+  for (let i = 0; i < last; i++) {
+    if (q <= xs[i + 1]) return lerp(i, q)
+  }
+  return ys[last]
 }
 
-export function mapGaze(model: CalibrationModel, gaze: Vec2): Vec2 {
-  const f = polyFeatures(gaze)
-  return [clamp01(dot(f, model.wx)), clamp01(dot(f, model.wy))]
+function clusterSamples(samples: CalibrationSample[]): CalibrationSample[] {
+  const groups = new Map<string, CalibrationSample[]>()
+  for (const s of samples) {
+    const key = `${s.target[0].toFixed(3)},${s.target[1].toFixed(3)}`
+    const list = groups.get(key)
+    if (list) list.push(s)
+    else groups.set(key, [s])
+  }
+  const clusters: CalibrationSample[] = []
+  for (const group of groups.values()) {
+    const dim = group[0].features.length
+    const features = Array(dim).fill(0)
+    for (let i = 0; i < dim; i++) features[i] = median(group.map((g) => g.features[i]))
+    clusters.push({ features, target: group[0].target })
+  }
+  return clusters
+}
+
+function verticalKnots(clusters: CalibrationSample[]): Knot[] {
+  const groups = new Map<number, number[]>()
+  for (const c of clusters) {
+    const y = Math.round(c.target[1] * 1000) / 1000
+    const list = groups.get(y)
+    if (list) list.push(gyOf(c.features))
+    else groups.set(y, [gyOf(c.features)])
+  }
+  const knots: Knot[] = []
+  for (const [t, values] of groups) knots.push({ f: median(values), t })
+  knots.sort((a, b) => a.f - b.f)
+  return knots
+}
+
+function monotonic(knots: Knot[]): boolean {
+  let up = 0
+  let down = 0
+  for (let i = 1; i < knots.length; i++) {
+    if (knots[i].t > knots[i - 1].t) up += 1
+    if (knots[i].t < knots[i - 1].t) down += 1
+  }
+  return up === 0 || down === 0
+}
+
+function linearY(clusters: CalibrationSample[]): Knot[] {
+  const xs = clusters.map((c) => gyOf(c.features))
+  const ys = clusters.map((c) => c.target[1])
+  const n = xs.length
+  const mx = xs.reduce((a, b) => a + b, 0) / n
+  const my = ys.reduce((a, b) => a + b, 0) / n
+  let num = 0
+  let den = 0
+  for (let i = 0; i < n; i++) {
+    num += (xs[i] - mx) * (ys[i] - my)
+    den += (xs[i] - mx) * (xs[i] - mx)
+  }
+  const b = den < 1e-12 ? 0 : num / den
+  const a = my - b * mx
+  const lo = Math.min(...xs)
+  const hi = Math.max(...xs)
+  return [
+    { f: lo, t: a + b * lo },
+    { f: hi, t: a + b * hi },
+  ]
+}
+
+function predictBase(model: Pick<CalibrationModel, 'wx' | 'yKnots' | 'means' | 'stds'>, features: number[]): Vec2 {
+  return [
+    clamp01(dot(model.wx, designX(features, model.means, model.stds))),
+    clamp01(interp1d(model.yKnots, gyOf(features))),
+  ]
+}
+
+export function fitCalibration(samples: CalibrationSample[]): CalibrationModel | null {
+  if (samples.length < 12) return null
+  const clusters = clusterSamples(samples)
+  if (clusters.length < 6) return null
+  if (clusters.some((c) => c.features.length !== 4 || !c.features.every(Number.isFinite))) return null
+
+  const dim = 4
+  const means = Array(dim).fill(0)
+  for (const c of clusters) {
+    for (let i = 0; i < dim; i++) means[i] += c.features[i]
+  }
+  for (let i = 0; i < dim; i++) means[i] /= clusters.length
+
+  const stds = Array(dim).fill(1)
+  for (let i = 0; i < dim; i++) {
+    const variance =
+      clusters.reduce((a, c) => {
+        const d = c.features[i] - means[i]
+        return a + d * d
+      }, 0) / clusters.length
+    stds[i] = Math.max(Math.sqrt(variance), 1e-4)
+  }
+
+  const gx = clusters.map((c) => gxOf(c.features))
+  const gy = clusters.map((c) => gyOf(c.features))
+  if (Math.max(...gx) - Math.min(...gx) < 0.008) return null
+  if (Math.max(...gy) - Math.min(...gy) < 0.004) return null
+
+  let wx: number[]
+  try {
+    wx = ridgeFit(
+      clusters.map((c) => designX(c.features, means, stds)),
+      clusters.map((c) => c.target[0]),
+      0.12,
+    )
+  } catch {
+    return null
+  }
+  if (wx.some((w) => !Number.isFinite(w))) return null
+
+  let yKnots = verticalKnots(clusters)
+  if (yKnots.length < 2 || !monotonic(yKnots)) yKnots = linearY(clusters)
+
+  const locals = clusters.map((c) => {
+    const pred = predictBase({ wx, yKnots, means, stds }, c.features)
+    return {
+      gx: gxOf(c.features),
+      gy: gyOf(c.features),
+      dx: c.target[0] - pred[0],
+      dy: c.target[1] - pred[1],
+    }
+  })
+
+  const error =
+    clusters.reduce((sum, s) => {
+      const [x, y] = predictBase({ wx, yKnots, means, stds }, s.features)
+      return sum + Math.hypot(x - s.target[0], y - s.target[1])
+    }, 0) / clusters.length
+
+  return { version: 3, wx, yKnots, locals, means, stds, error }
+}
+
+export function mapGaze(model: CalibrationModel, features: number[]): Vec2 {
+  if (
+    model.version !== 3 ||
+    !model.wx?.length ||
+    !model.yKnots?.length ||
+    !model.means?.length ||
+    features.length !== model.means.length ||
+    !features.every(Number.isFinite)
+  ) {
+    return [0.5, 0.5]
+  }
+  const base = predictBase(model, features)
+  const locals = model.locals ?? []
+  if (locals.length < 4) return base
+  const qgx = gxOf(features)
+  const qgy = gyOf(features)
+  const ranked = locals
+    .map((k) => ({ k, d: Math.hypot(qgx - k.gx, qgy - k.gy) }))
+    .sort((a, b) => a.d - b.d)
+    .slice(0, 4)
+  const bandwidth = 0.016
+  let wsum = 0
+  let dx = 0
+  let dy = 0
+  for (const { k, d } of ranked) {
+    const w = Math.exp(-(d * d) / (2 * bandwidth * bandwidth)) / (d * d + 1e-8)
+    dx += w * k.dx
+    dy += w * k.dy
+    wsum += w
+  }
+  if (wsum <= 0) return base
+  const mix = 0.82 / (1 + (ranked[0].d / bandwidth) ** 2)
+  return [
+    clamp01(base[0] + mix * clampShift(dx / wsum)),
+    clamp01(base[1] + mix * clampShift(dy / wsum)),
+  ]
 }

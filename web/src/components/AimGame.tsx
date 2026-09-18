@@ -5,7 +5,6 @@ import {
   fitCalibration,
   type CalibrationModel,
   type CalibrationSample,
-  type Vec2,
 } from '../lib/eyeTracking'
 import './AimGame.css'
 
@@ -13,9 +12,10 @@ type Phase = 'setup' | 'calibrating' | 'review' | 'playing' | 'results'
 type InputMode = 'gaze' | 'mouse'
 type Point = { x: number; y: number }
 
-const SETTLE_MS = 800
-const COLLECT_MS = 1000
-const MIN_SAMPLES = 8
+const SETTLE_MS = 1000
+const COLLECT_TARGET = 24
+const COLLECT_TIMEOUT_MS = 3500
+const STABLE_SD = 0.02
 
 const ROUND_MS = 30_000
 const COUNTDOWN_MS = 3000
@@ -245,42 +245,94 @@ export function Calibration({
     }
 
     const target = CALIBRATION_TARGETS[index]
-    const buffer: Vec2[] = []
+    const buffer: number[][] = []
     let raf = 0
+    let collecting = false
+    let done = false
+    let settleFrom = performance.now()
+    let collectAt = 0
 
-    const settle = window.setTimeout(() => {
-      setCollectingKey(`${index}-${attempt}`)
-      const start = performance.now()
-      const tick = () => {
-        const snap = eye.snapshotRef.current
-        if (snap.faceFound && !snap.eyesClosed && snap.gaze) {
-          buffer.push(snap.gaze)
-          if (buffer.length % 5 === 0) setFramesCollected(buffer.length)
+    const finish = (next: () => void) => {
+      if (done) return
+      done = true
+      next()
+    }
+
+    let lastSampleAt = -1
+
+    const tick = () => {
+      if (done) return
+      raf = requestAnimationFrame(tick)
+      const now = performance.now()
+      const snap = eye.snapshotRef.current
+      if (snap.at === lastSampleAt) return
+      lastSampleAt = snap.at
+      const usable = Boolean(snap.faceFound && !snap.eyesClosed && snap.features?.every(Number.isFinite))
+
+      if (!usable) {
+        settleFrom = now
+        if (collecting) {
+          buffer.length = 0
+          collecting = false
+          setCollectingKey('')
+          setFramesCollected(0)
+          setWarning('Keep your eyes open and your face in view')
         }
-        if (performance.now() - start < COLLECT_MS) {
-          raf = requestAnimationFrame(tick)
-          return
+        return
+      }
+
+      if (!collecting) {
+        if (now - settleFrom < SETTLE_MS) return
+        collecting = true
+        collectAt = now
+        setCollectingKey(`${index}-${attempt}`)
+        setWarning('')
+      }
+
+      buffer.push(snap.features!.slice())
+      if (buffer.length % 4 === 0) setFramesCollected(buffer.length)
+
+      if (buffer.length < COLLECT_TARGET) {
+        if (now - collectAt > COLLECT_TIMEOUT_MS) {
+          finish(() => {
+            setWarning("Couldn't see your eyes — look at the dot and hold still.")
+            setFramesCollected(0)
+            setAttempt((a) => a + 1)
+          })
         }
-        if (buffer.length < MIN_SAMPLES) {
-          setWarning("Couldn't see your eyes — look at the dot and hold still.")
+        return
+      }
+
+      const dim = buffer[0].length
+      const stable = Array.from({ length: dim }, (_, d) => {
+        const values = buffer.map((s) => s[d])
+        const mean = values.reduce((a, b) => a + b, 0) / values.length
+        const sd = Math.sqrt(values.reduce((sum, v) => sum + (v - mean) ** 2, 0) / values.length)
+        return sd <= STABLE_SD
+      }).every(Boolean)
+      if (!stable) {
+        finish(() => {
+          setWarning('Hold still and keep looking at this dot')
           setFramesCollected(0)
           setAttempt((a) => a + 1)
-          return
-        }
+        })
+        return
+      }
+
+      const features = Array.from({ length: dim }, (_, d) => {
+        const values = buffer.map((s) => s[d]).sort((a, b) => a - b)
+        return values[Math.floor(values.length / 2)]
+      })
+      finish(() => {
+        samplesRef.current.push({ features, target })
         setWarning('')
-        const mean: Vec2 = [
-          buffer.reduce((s, g) => s + g[0], 0) / buffer.length,
-          buffer.reduce((s, g) => s + g[1], 0) / buffer.length,
-        ]
-        samplesRef.current.push({ gaze: mean, target })
         setFramesCollected(0)
         setIndex((i) => i + 1)
-      }
-      raf = requestAnimationFrame(tick)
-    }, SETTLE_MS)
+      })
+    }
+    raf = requestAnimationFrame(tick)
 
     return () => {
-      window.clearTimeout(settle)
       cancelAnimationFrame(raf)
     }
   }, [index, attempt, eye.snapshotRef])

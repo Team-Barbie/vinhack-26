@@ -54,7 +54,7 @@ export class OneEuro2D {
   private fx: OneEuro
   private fy: OneEuro
 
-  constructor(minCutoff = 0.8, beta = 0.004) {
+  constructor(minCutoff = 1.1, beta = 0.35) {
     this.fx = new OneEuro(minCutoff, beta)
     this.fy = new OneEuro(minCutoff, beta)
   }

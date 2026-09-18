@@ -1,5 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { useEyeTracker } from '../hooks/useEyeTracker'
+import { Calibration, FaceChip } from './AimGame'
 import GazePhraseBoard from './GazePhraseBoard'
+import EyeRemote from './EyeRemote'
+import './AimGame.css'
 import './NeedsBoard.css'
 
 interface NeedTile {
@@ -97,6 +101,13 @@ const SCREENS: Record<Screen, { title: string; tiles: NeedTile[] }> = {
   urgent: { title: 'Urgent / Health Requests', tiles: URGENT_TILES },
 }
 
+const PAGER_IDS = new Set(['nurse', 'emergency', 'breathing', 'nauseous', 'bleeding', 'dizzy', 'unwell'])
+const COOLDOWN_MS = 1300
+
+function nurseTime() {
+  return new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+}
+
 function speak(text: string) {
   if (!text || !('speechSynthesis' in window)) return
   window.speechSynthesis.cancel()
@@ -106,14 +117,20 @@ function speak(text: string) {
 }
 
 export default function NeedsBoard({ onExit }: { onExit: () => void }) {
-  const [screen, setScreen] = useState<Screen>('urgent')
+  const eye = useEyeTracker()
+  const [screen, setScreen] = useState<Screen>('main')
+  const [boardPhase, setBoardPhase] = useState<'setup' | 'calibrating' | 'board'>('board')
+  const boardRef = useRef<HTMLDivElement | null>(null)
+  const [remoteVersion, setRemoteVersion] = useState(0)
   const [sentence, setSentence] = useState<NeedTile[]>([])
   const [answerFlash, setAnswerFlash] = useState<'yes' | 'no' | null>(null)
   const [spokenTile, setSpokenTile] = useState<string | null>(null)
   const [spokenMessage, setSpokenMessage] = useState('')
+  const [pager, setPager] = useState('')
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const audioQueueRef = useRef<string[]>([])
   const playNextRef = useRef<() => void>(() => undefined)
+  const coolUntil = useRef(0)
 
   useEffect(() => () => {
     audioRef.current?.pause()
@@ -152,6 +169,9 @@ export default function NeedsBoard({ onExit }: { onExit: () => void }) {
   }
 
   const activateTile = (tile: NeedTile) => {
+    if (performance.now() < coolUntil.current) return
+    coolUntil.current = performance.now() + COOLDOWN_MS
+
     if (screen === 'sentence') {
       setSentence((prev) => [...prev, tile])
       speak(tile.phrase)
@@ -160,9 +180,13 @@ export default function NeedsBoard({ onExit }: { onExit: () => void }) {
     }
 
     if (tile.instant) speak(tile.phrase)
-    else playAudioClips([tile.id])
+    else {
+      playAudioClips([tile.id])
+      speak(tile.phrase)
+    }
     setSpokenMessage(tile.phrase)
     flashTile(tile.id, 650)
+    if (PAGER_IDS.has(tile.id)) setPager(`Nurse alerted at ${nurseTime()}`)
   }
 
   const clearSentence = () => setSentence([])
@@ -180,8 +204,60 @@ export default function NeedsBoard({ onExit }: { onExit: () => void }) {
 
   const { title, tiles } = SCREENS[screen]
 
+
+  if (boardPhase === 'calibrating') {
+    return (
+      <div className="needs-board">
+        <video ref={eye.videoRef} className="board-cam" muted playsInline />
+        <Calibration
+          eye={eye}
+          onComplete={(model) => {
+            if (!model) {
+              setBoardPhase('setup')
+              return
+            }
+            eye.setCalibration(model)
+            setBoardPhase('board')
+          }}
+          onCancel={() => setBoardPhase('setup')}
+        />
+      </div>
+    )
+  }
+
+  if (boardPhase === 'setup') {
+    const ready = eye.status === 'ready' && eye.faceFound
+    return (
+      <div className="needs-board">
+        <video ref={eye.videoRef} className="board-cam is-large" muted playsInline />
+        <div className="board-setup">
+          <span className="board-setup-eyebrow">GazeBridge</span>
+          <h1>Look at a request. Blink to confirm.</h1>
+          <p>Sit 50–80 cm from the camera. Keep your head still and move only your eyes to each glowing dot. Recalibrate — the old saved map will not work.</p>
+          <FaceChip eye={eye} />
+          {eye.status === 'error' && <p className="board-setup-error">{eye.error}</p>}
+          <div className="board-setup-actions">
+            <button type="button" className="home-btn" disabled={!ready} onClick={() => setBoardPhase('calibrating')}>
+              {eye.calibrated ? 'Recalibrate' : 'Start calibration'}
+            </button>
+            {eye.calibrated && (
+              <button type="button" className="home-btn" disabled={!ready} onClick={() => setBoardPhase('board')}>
+                Use saved calibration
+              </button>
+            )}
+            <button type="button" className="home-btn" onClick={() => setBoardPhase('board')}>
+              Skip — tap to demo
+            </button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   return (
-    <div className={`needs-board screen-${screen}`}>
+    <div ref={boardRef} className={`needs-board screen-${screen}`}>
+      <video ref={eye.videoRef} className="board-cam" muted playsInline />
+      {pager && <div className="pager-banner" role="status">{pager}</div>}
       <audio
         ref={audioRef}
         preload="auto"
@@ -192,6 +268,9 @@ export default function NeedsBoard({ onExit }: { onExit: () => void }) {
       <div className="board-nav">
         <button type="button" className="home-btn" onClick={onExit}>
           ← Home
+        </button>
+        <button type="button" className="home-btn" onClick={() => screen === 'gaze' ? setBoardPhase('calibrating') : setRemoteVersion((v) => v + 1)}>
+          {screen === 'gaze' ? 'Recalibrate' : 'Reset remote'}
         </button>
         <div className="nav-tabs">
           <button
@@ -239,6 +318,7 @@ export default function NeedsBoard({ onExit }: { onExit: () => void }) {
         </button>
       </div>
 
+      {screen !== 'gaze' && <EyeRemote key={remoteVersion} eye={eye} root={boardRef} screenKey={screen} />}
       {screen !== 'gaze' && (
         <div className="quick-answer">
           <span className="quick-answer-label">Answering a question?</span>
@@ -262,7 +342,7 @@ export default function NeedsBoard({ onExit }: { onExit: () => void }) {
       )}
 
       {screen === 'gaze' ? (
-        <GazePhraseBoard />
+        <GazePhraseBoard eye={eye} />
       ) : screen === 'sentence' ? (
         <div className="phrase-bar">
           <div className="phrase-text" aria-live="polite">
@@ -306,7 +386,7 @@ export default function NeedsBoard({ onExit }: { onExit: () => void }) {
         </div>
       ) : (
         <div className="speech-status" role="status" aria-live="polite">
-          {spokenMessage ? `Spoke: “${spokenMessage}”` : 'Tap a request to speak it'}
+          {spokenMessage ? `Spoke: “${spokenMessage}”` : 'Look left / right / up / down to move · center stops · hold a blink to select · or tap'}
         </div>
       )}
 

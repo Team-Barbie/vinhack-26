@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useEyeTracker } from '../hooks/useEyeTracker'
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
+import type { EyeTracker } from '../hooks/useEyeTracker'
 import type { CalibrationModel } from '../lib/eyeTracking'
 import { Calibration, FaceChip } from './AimGame'
 import './GazePhraseBoard.css'
@@ -73,10 +73,9 @@ function remoteDirectionFor(screen: { x: number; y: number } | null): RemoteDire
   return 'neutral'
 }
 
-export default function GazePhraseBoard() {
-  const eye = useEyeTracker()
+export default function GazePhraseBoard({ eye }: { eye: EyeTracker }) {
   const { videoRef, status, error, faceFound, calibrated, snapshotRef, setCalibration, onBlink } = eye
-  const [phase, setPhase] = useState<GazePhase>('setup')
+  const [phase, setPhase] = useState<GazePhase>(eye.calibrated ? 'selecting' : 'setup')
   const [inputMode, setInputMode] = useState<InputMode>('gaze')
   const [choices, setChoices] = useState<readonly string[]>(PHRASES)
   const [history, setHistory] = useState<readonly string[][]>([])
@@ -274,7 +273,6 @@ export default function GazePhraseBoard() {
               </button>
             </div>
           </div>
-          <video ref={videoRef} className="gaze-setup-camera" muted playsInline />
         </div>
       </section>
     )
@@ -335,8 +333,6 @@ export default function GazePhraseBoard() {
 
   return (
     <section className="gaze-phrase-board" aria-label="Gaze phrase selector">
-      <video ref={videoRef} className="gaze-camera" muted playsInline aria-hidden="true" />
-
       <div className="gaze-phrase-toolbar">
         <button type="button" className={`gaze-back ${activeZone === 'back' ? 'dwelling' : ''}`} onClick={goBack} disabled={history.length === 0}>
           ↑ Look up or tap to go back
@@ -354,7 +350,7 @@ export default function GazePhraseBoard() {
         <button
           type="button"
           className={`gaze-choice gaze-choice-left ${activeZone === 'left' ? 'dwelling' : ''}`}
-          style={{ '--dwell-progress': activeZone === 'left' ? `${progress * 100}%` : '0%' } as React.CSSProperties}
+          style={{ '--dwell-progress': activeZone === 'left' ? `${progress * 100}%` : '0%' } as CSSProperties}
           onClick={() => chooseSide('left')}
         >
           <span className="gaze-direction">← Look left</span>
@@ -366,7 +362,7 @@ export default function GazePhraseBoard() {
         <button
           type="button"
           className={`gaze-choice gaze-choice-right ${activeZone === 'right' ? 'dwelling' : ''}`}
-          style={{ '--dwell-progress': activeZone === 'right' ? `${progress * 100}%` : '0%' } as React.CSSProperties}
+          style={{ '--dwell-progress': activeZone === 'right' ? `${progress * 100}%` : '0%' } as CSSProperties}
           onClick={() => chooseSide('right')}
         >
           <span className="gaze-direction">Look right →</span>

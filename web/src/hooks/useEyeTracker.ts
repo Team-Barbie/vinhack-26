@@ -1,21 +1,27 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { FaceLandmarker, FilesetResolver, type NormalizedLandmark } from '@mediapipe/tasks-vision'
-import { BlinkDetector, GazeTracker, mapGaze, type CalibrationModel, type Vec2 } from '../lib/eyeTracking'
-import { OneEuro2D } from '../lib/oneEuro'
+import { BlinkDetector } from '../lib/blink'
+import { GazeTracker, mapGaze, type CalibrationModel, type Vec2 } from '../lib/eyeTracking'
+import { GazeFilter } from '../lib/gazeFilter'
 
 // Pinned to the installed @mediapipe/tasks-vision version; bump both together.
 const WASM_URL = 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.0.1/wasm'
 const MODEL_URL =
   'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task'
-const STORAGE_KEY = 'gazebridge.calibration'
+const STORAGE_KEY = 'gazebridge.calibration.v3'
 
 export type TrackerStatus = 'loading' | 'ready' | 'error'
 
 export interface GazeSnapshot {
+  blinkL?: number
+  blinkR?: number
+  detectedFace?: boolean
   faceFound: boolean
   eyesClosed: boolean
   gaze: Vec2 | null
+  features: number[] | null
   screen: { x: number; y: number } | null
+  at: number
 }
 
 let landmarkerPromise: Promise<FaceLandmarker> | null = null
@@ -72,7 +78,18 @@ function primaryFaceIndex(faces: readonly NormalizedLandmark[][]): number {
 function loadStoredModel(): CalibrationModel | null {
   try {
     const raw = sessionStorage.getItem(STORAGE_KEY)
-    return raw ? (JSON.parse(raw) as CalibrationModel) : null
+    if (!raw) return null
+    const model = JSON.parse(raw) as CalibrationModel
+    if (
+      model?.version !== 3 ||
+      !Array.isArray(model.wx) ||
+      !Array.isArray(model.yKnots) ||
+      !Array.isArray(model.means) ||
+      !Array.isArray(model.stds)
+    ) {
+      return null
+    }
+    return model
   } catch {
     return null
   }
@@ -85,6 +102,11 @@ function describeError(err: unknown): string {
     if (err.name === 'NotReadableError') return 'The camera is in use by another app. Close it and reload.'
   }
   return `Eye tracking could not start: ${err instanceof Error ? err.message : String(err)}`
+}
+
+function toPixels(norm: Vec2 | null): { x: number; y: number } | null {
+  if (!norm) return null
+  return { x: norm[0] * window.innerWidth, y: norm[1] * window.innerHeight }
 }
 
 export function useEyeTracker() {
@@ -102,12 +124,20 @@ export function useEyeTracker() {
   const [status, setStatus] = useState<TrackerStatus>('loading')
   const [error, setError] = useState('')
   const [faceFound, setFaceFound] = useState(false)
-  const snapshotRef = useRef<GazeSnapshot>({ faceFound: false, eyesClosed: false, gaze: null, screen: null })
+  const snapshotRef = useRef<GazeSnapshot>({
+    faceFound: false,
+    eyesClosed: false,
+    gaze: null,
+    features: null,
+    screen: null,
+    at: 0,
+  })
   const landmarksRef = useRef<NormalizedLandmark[] | null>(null)
   const [storedModel] = useState(loadStoredModel)
   const modelRef = useRef<CalibrationModel | null>(storedModel)
   const [calibrated, setCalibrated] = useState(storedModel !== null)
-  const smootherRef = useRef(new OneEuro2D())
+  const filterRef = useRef(new GazeFilter())
+  const blinkRef = useRef(new BlinkDetector())
   const blinkListeners = useRef(new Set<() => void>())
 
   useEffect(() => {
@@ -115,7 +145,8 @@ export function useEyeTracker() {
     let raf = 0
     let stream: MediaStream | null = null
     const tracker = new GazeTracker()
-    const blink = new BlinkDetector()
+    const blink = blinkRef.current
+    blink.reset()
 
     async function start() {
       try {
@@ -125,10 +156,11 @@ export function useEyeTracker() {
         })
         if (cancelled) return
         streamRef.current = stream
-        const video = videoElementRef.current
-        if (!video) return
-        video.srcObject = stream
-        await video.play()
+        const attached = videoElementRef.current
+        if (attached) {
+          attached.srcObject = stream
+          await attached.play().catch(() => undefined)
+        }
         const landmarker = await getLandmarker()
         if (cancelled) return
         setStatus('ready')
@@ -136,39 +168,71 @@ export function useEyeTracker() {
         let lastVideoTime = -1
         let lastVideo: HTMLVideoElement | null = null
         let lastFace = false
+        let lastTimestamp = -1
         const loop = () => {
           raf = requestAnimationFrame(loop)
           const video = videoElementRef.current
-          if (!video) return
+          if (!video || video.readyState < 2) return
           if (video !== lastVideo) {
             lastVideo = video
             lastVideoTime = -1
+            if (streamRef.current && video.srcObject !== streamRef.current) {
+              video.srcObject = streamRef.current
+              void video.play().catch(() => undefined)
+            }
           }
-          if (video.readyState < 2 || video.currentTime === lastVideoTime) return
+          if (video.currentTime === lastVideoTime) return
           lastVideoTime = video.currentTime
 
           const now = performance.now()
-          const result = landmarker.detectForVideo(video, now)
+          let ts = now
+          if (ts <= lastTimestamp) ts = lastTimestamp + 1
+          lastTimestamp = ts
+
+          let result
+          try {
+            result = landmarker.detectForVideo(video, ts)
+          } catch {
+            return
+          }
           const faceIndex = primaryFaceIndex(result.faceLandmarks)
           landmarksRef.current = result.faceLandmarks[faceIndex] ?? null
-          const frame = tracker.update(result, faceIndex)
+          const vw = video.videoWidth || 1280
+          const vh = video.videoHeight || 720
+          const frame = tracker.update(result, faceIndex, vw, vh)
           if (frame.faceFound !== lastFace) {
             lastFace = frame.faceFound
             setFaceFound(frame.faceFound)
           }
 
-          // Cursor freezes while the face is lost or the eyes are closed, so a
-          // blink never drags the crosshair off the target it is confirming.
-          let screen = snapshotRef.current.screen
+          const shot = blink.update(frame, ts)
+          const blinking = blink.isFrozen(ts)
           const model = modelRef.current
-          if (frame.faceFound && frame.gaze && model && !frame.bothClosed) {
-            const [nx, ny] = mapGaze(model, frame.gaze)
-            const [sx, sy] = smootherRef.current.filter(nx * window.innerWidth, ny * window.innerHeight, now)
-            screen = { x: sx, y: sy }
+          let predicted: Vec2 | null = null
+          if (frame.faceFound && frame.features && model && !blinking) {
+            predicted = mapGaze(model, frame.features)
           }
-          snapshotRef.current = { faceFound: frame.faceFound, eyesClosed: frame.bothClosed, gaze: frame.gaze, screen }
+          const filtered = filterRef.current.update(predicted, ts, {
+            quality: frame.quality,
+            blinking,
+            faceFound: frame.faceFound || blinking,
+          })
+          if (!blinking && filtered) blink.pushGaze(filtered, ts)
+          snapshotRef.current = {
+            // The remote uses actual blendshapes when available. Fixed EAR
+            // thresholds can label naturally narrow, open eyes as closed.
+            blinkL: result.faceBlendshapes?.[faceIndex]?.categories.find((c) => c.categoryName === 'eyeBlinkLeft')?.score ?? frame.blinkL,
+            blinkR: result.faceBlendshapes?.[faceIndex]?.categories.find((c) => c.categoryName === 'eyeBlinkRight')?.score ?? frame.blinkR,
+            detectedFace: frame.faceFound,
+            faceFound: frame.faceFound || blinking,
+            eyesClosed: blinking,
+            gaze: frame.gaze,
+            features: frame.features,
+            screen: toPixels(filtered),
+            at: ts,
+          }
 
-          if (blink.update(frame, now)) blinkListeners.current.forEach((fn) => fn())
+          if (shot) blinkListeners.current.forEach((fn) => fn())
         }
         loop()
       } catch (err) {
@@ -190,7 +254,8 @@ export function useEyeTracker() {
 
   const setCalibration = useCallback((model: CalibrationModel | null) => {
     modelRef.current = model
-    smootherRef.current.reset()
+    filterRef.current.reset()
+    blinkRef.current.reset()
     snapshotRef.current = { ...snapshotRef.current, screen: null }
     setCalibrated(model !== null)
     try {
