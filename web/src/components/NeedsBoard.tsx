@@ -103,9 +103,8 @@ function speak(text: string) {
   window.speechSynthesis.speak(utterance)
 }
 
-export default function NeedsBoard() {
+export default function NeedsBoard({ onExit }: { onExit: () => void }) {
   const [screen, setScreen] = useState<Screen>('urgent')
-  const [phrase, setPhrase] = useState<NeedTile[]>([])
   const [sentence, setSentence] = useState<NeedTile[]>([])
   const [answerFlash, setAnswerFlash] = useState<'yes' | 'no' | null>(null)
   const [spokenTile, setSpokenTile] = useState<string | null>(null)
@@ -143,45 +142,28 @@ export default function NeedsBoard() {
     playNextRef.current()
   }, [])
 
-  const addTile = (tile: NeedTile) => {
-    setPhrase((prev) => [...prev, tile])
-    playAudioClips([tile.id])
+  const flashTile = (id: string, ms: number) => {
+    setSpokenTile(id)
+    window.setTimeout(() => {
+      setSpokenTile((current) => (current === id ? null : current))
+    }, ms)
   }
 
   const activateTile = (tile: NeedTile) => {
     if (screen === 'sentence') {
       setSentence((prev) => [...prev, tile])
       speak(tile.phrase)
-      setSpokenTile(tile.id)
-      window.setTimeout(() => {
-        setSpokenTile((current) => (current === tile.id ? null : current))
-      }, 450)
+      flashTile(tile.id, 450)
       return
     }
 
-    if (!tile.instant) {
-      addTile(tile)
-      return
-    }
-
-    speak(tile.phrase)
-    setSpokenTile(tile.id)
+    if (tile.instant) speak(tile.phrase)
+    else playAudioClips([tile.id])
     setSpokenMessage(tile.phrase)
-    window.setTimeout(() => {
-      setSpokenTile((current) => (current === tile.id ? null : current))
-    }, 650)
+    flashTile(tile.id, 650)
   }
 
-  const activePhrase = screen === 'sentence' ? sentence : phrase
-
-  const clear = () => {
-    if (screen === 'sentence') {
-      setSentence([])
-      return
-    }
-    setPhrase([])
-  }
-
+  const clearSentence = () => setSentence([])
   const undoSentence = () => setSentence((prev) => prev.slice(0, -1))
 
   const speakSentence = () => {
@@ -206,6 +188,9 @@ export default function NeedsBoard() {
         onError={() => playNextRef.current()}
       />
       <div className="board-nav">
+        <button type="button" className="home-btn" onClick={onExit}>
+          ← Home
+        </button>
         <div className="nav-tabs">
           <button
             type="button"
@@ -265,58 +250,52 @@ export default function NeedsBoard() {
         </div>
       </div>
 
-      {screen === 'quick' && (
+      {screen === 'sentence' ? (
+        <div className="phrase-bar">
+          <div className="phrase-text" aria-live="polite">
+            {sentence.length === 0 ? (
+              <span className="phrase-placeholder">Choose words below to build a sentence…</span>
+            ) : (
+              sentence.map((t, i) => (
+                <span key={`${t.id}-${i}`} className="phrase-chip">
+                  <span className="phrase-chip-icon">{t.icon}</span>
+                  {t.phrase}
+                </span>
+              ))
+            )}
+          </div>
+          <div className="phrase-actions">
+            <button
+              type="button"
+              className="phrase-btn speak"
+              onClick={speakSentence}
+              disabled={sentence.length === 0}
+            >
+              🔊 Speak
+            </button>
+            <button
+              type="button"
+              className="phrase-btn undo"
+              onClick={undoSentence}
+              disabled={sentence.length === 0}
+            >
+              ↶ Undo
+            </button>
+            <button
+              type="button"
+              className="phrase-btn clear"
+              onClick={clearSentence}
+              disabled={sentence.length === 0}
+            >
+              Clear
+            </button>
+          </div>
+        </div>
+      ) : (
         <div className="speech-status" role="status" aria-live="polite">
-          {spokenMessage ? `Spoke: “${spokenMessage}”` : 'Ready to speak'}
+          {spokenMessage ? `Spoke: “${spokenMessage}”` : 'Tap a request to speak it'}
         </div>
       )}
-
-      <div className="phrase-bar">
-        <div className="phrase-text" aria-live="polite">
-          {activePhrase.length === 0 ? (
-            <span className="phrase-placeholder">
-              {screen === 'sentence' ? 'Choose words below to build a sentence…' : 'Tap icons below to build a phrase…'}
-            </span>
-          ) : (
-            activePhrase.map((t, i) => (
-              <span key={`${t.id}-${i}`} className="phrase-chip">
-                <span className="phrase-chip-icon">{t.icon}</span>
-                {t.phrase}
-              </span>
-            ))
-          )}
-        </div>
-        <div className="phrase-actions">
-          {screen === 'sentence' && (
-            <>
-              <button
-                type="button"
-                className="phrase-btn speak"
-                onClick={speakSentence}
-                disabled={sentence.length === 0}
-              >
-                🔊 Speak
-              </button>
-              <button
-                type="button"
-                className="phrase-btn undo"
-                onClick={undoSentence}
-                disabled={sentence.length === 0}
-              >
-                ↶ Undo
-              </button>
-            </>
-          )}
-          <button
-            type="button"
-            className="phrase-btn clear"
-            onClick={clear}
-            disabled={activePhrase.length === 0}
-          >
-            Clear
-          </button>
-        </div>
-      </div>
 
       <h2 className="screen-title">{title}</h2>
 

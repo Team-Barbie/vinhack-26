@@ -22,3 +22,6 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Root .gitignore (Python template) ignores every lib/ folder; the frontend needs this one.
+!src/lib/

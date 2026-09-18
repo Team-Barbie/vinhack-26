@@ -1,0 +1,654 @@
+import { useCallback, useEffect, useRef, useState, type MutableRefObject } from 'react'
+import { useEyeTracker, type EyeTracker } from '../hooks/useEyeTracker'
+import {
+  CALIBRATION_TARGETS,
+  fitCalibration,
+  type CalibrationModel,
+  type CalibrationSample,
+  type Vec2,
+} from '../lib/eyeTracking'
+import './AimGame.css'
+
+type Phase = 'setup' | 'calibrating' | 'review' | 'playing' | 'results'
+type InputMode = 'gaze' | 'mouse'
+type Point = { x: number; y: number }
+
+const SETTLE_MS = 800
+const COLLECT_MS = 1000
+const MIN_SAMPLES = 8
+
+const ROUND_MS = 30_000
+const COUNTDOWN_MS = 3000
+const TARGET_COUNT = 3
+const TARGET_R = 46
+// Webcam gaze lands a few cm off, so hits are judged on a radius well beyond the visible target.
+const HIT_R = 72
+const TARGET_TTL_MS = 3500
+const HUD_CLEARANCE = 120
+
+interface RoundResults {
+  score: number
+  hits: number
+  misses: number
+  bestCombo: number
+  avgReactionMs: number | null
+}
+
+function qualityOf(error: number): { label: string; tone: 'good' | 'fair' | 'rough' } {
+  if (error < 0.05) return { label: 'Good', tone: 'good' }
+  if (error < 0.1) return { label: 'Fair', tone: 'fair' }
+  return { label: 'Rough', tone: 'rough' }
+}
+
+function useCursor(eye: EyeTracker, mode: InputMode): MutableRefObject<Point | null> {
+  const cursorRef = useRef<Point | null>(null)
+
+  useEffect(() => {
+    cursorRef.current = null
+    if (mode === 'mouse') {
+      const move = (e: PointerEvent) => {
+        cursorRef.current = { x: e.clientX, y: e.clientY }
+      }
+      window.addEventListener('pointermove', move)
+      return () => window.removeEventListener('pointermove', move)
+    }
+    let raf = 0
+    const tick = () => {
+      cursorRef.current = eye.snapshotRef.current.screen
+      raf = requestAnimationFrame(tick)
+    }
+    tick()
+    return () => cancelAnimationFrame(raf)
+  }, [eye.snapshotRef, mode])
+
+  return cursorRef
+}
+
+function Crosshair({ cursorRef, dimmed }: { cursorRef: MutableRefObject<Point | null>; dimmed: boolean }) {
+  const el = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    let raf = 0
+    const tick = () => {
+      const node = el.current
+      const c = cursorRef.current
+      if (node) {
+        node.style.opacity = c ? '' : '0'
+        if (c) node.style.transform = `translate(${c.x}px, ${c.y}px)`
+      }
+      raf = requestAnimationFrame(tick)
+    }
+    tick()
+    return () => cancelAnimationFrame(raf)
+  }, [cursorRef])
+
+  return <div ref={el} className={`crosshair ${dimmed ? 'is-dimmed' : ''}`} aria-hidden="true" />
+}
+
+function FaceChip({ eye }: { eye: EyeTracker }) {
+  if (eye.status === 'loading') return <span className="aim-chip">Loading eye tracker…</span>
+  if (eye.status === 'error') return <span className="aim-chip is-bad">Tracker error</span>
+  return (
+    <span className={`aim-chip ${eye.faceFound ? 'is-good' : 'is-bad'}`}>
+      <span className="aim-chip-dot" />
+      {eye.faceFound ? 'Face found' : 'Face not found'}
+    </span>
+  )
+}
+
+function Setup({
+  eye,
+  onCalibrate,
+  onPlay,
+  onMouse,
+  onExit,
+}: {
+  eye: EyeTracker
+  onCalibrate: () => void
+  onPlay: () => void
+  onMouse: () => void
+  onExit: () => void
+}) {
+  const ready = eye.status === 'ready' && eye.faceFound
+
+  return (
+    <div className="aim-setup">
+      <button type="button" className="aim-back" onClick={onExit}>
+        ← Home
+      </button>
+      <div className="aim-setup-card">
+        <span className="aim-eyebrow">Aim Trainer</span>
+        <h1 className="aim-title">Aim with your eyes. Blink to shoot.</h1>
+        <p className="aim-lede">
+          Sit 50–80 cm from the screen with your face evenly lit and your head mostly still. Calibration takes
+          about 15 seconds — just follow the dot with your eyes.
+        </p>
+
+        <div className="aim-status-row">
+          <FaceChip eye={eye} />
+        </div>
+        {eye.status === 'error' && <p className="aim-error">{eye.error}</p>}
+
+        <div className="aim-actions">
+          <button type="button" className="aim-btn is-primary" disabled={!ready} onClick={onCalibrate}>
+            {eye.calibrated ? 'Recalibrate' : 'Start calibration'}
+          </button>
+          {eye.calibrated && (
+            <button type="button" className="aim-btn" disabled={!ready} onClick={onPlay}>
+              Play with last calibration
+            </button>
+          )}
+          <button type="button" className="aim-btn is-ghost" onClick={onMouse}>
+            Use mouse instead
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function Calibration({
+  eye,
+  onComplete,
+  onCancel,
+}: {
+  eye: EyeTracker
+  onComplete: (model: CalibrationModel | null) => void
+  onCancel: () => void
+}) {
+  const [index, setIndex] = useState(0)
+  const [attempt, setAttempt] = useState(0)
+  const [collectingKey, setCollectingKey] = useState('')
+  const [warning, setWarning] = useState('')
+  const samplesRef = useRef<CalibrationSample[]>([])
+  const onCompleteRef = useRef(onComplete)
+  const pointKey = `${index}-${attempt}`
+  const collecting = collectingKey === pointKey
+
+  useEffect(() => {
+    onCompleteRef.current = onComplete
+  }, [onComplete])
+
+  useEffect(() => {
+    if (index >= CALIBRATION_TARGETS.length) {
+      onCompleteRef.current(fitCalibration(samplesRef.current))
+      return
+    }
+
+    const target = CALIBRATION_TARGETS[index]
+    const buffer: Vec2[] = []
+    let raf = 0
+
+    const settle = window.setTimeout(() => {
+      setCollectingKey(`${index}-${attempt}`)
+      const start = performance.now()
+      const tick = () => {
+        const snap = eye.snapshotRef.current
+        if (snap.faceFound && !snap.eyesClosed && snap.gaze) buffer.push(snap.gaze)
+        if (performance.now() - start < COLLECT_MS) {
+          raf = requestAnimationFrame(tick)
+          return
+        }
+        if (buffer.length < MIN_SAMPLES) {
+          setWarning("Couldn't see your eyes — look at the dot and hold still.")
+          setAttempt((a) => a + 1)
+          return
+        }
+        setWarning('')
+        const mean: Vec2 = [
+          buffer.reduce((s, g) => s + g[0], 0) / buffer.length,
+          buffer.reduce((s, g) => s + g[1], 0) / buffer.length,
+        ]
+        samplesRef.current.push({ gaze: mean, target })
+        setIndex((i) => i + 1)
+      }
+      raf = requestAnimationFrame(tick)
+    }, SETTLE_MS)
+
+    return () => {
+      window.clearTimeout(settle)
+      cancelAnimationFrame(raf)
+    }
+  }, [index, attempt, eye.snapshotRef])
+
+  useEffect(() => {
+    const key = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onCancel()
+    }
+    window.addEventListener('keydown', key)
+    return () => window.removeEventListener('keydown', key)
+  }, [onCancel])
+
+  const target = CALIBRATION_TARGETS[Math.min(index, CALIBRATION_TARGETS.length - 1)]
+
+  return (
+    <div className="aim-calibration">
+      <div className="aim-calibration-hud">
+        <span className="aim-eyebrow">
+          Calibrating · {Math.min(index + 1, CALIBRATION_TARGETS.length)} / {CALIBRATION_TARGETS.length}
+        </span>
+        <span className="aim-calibration-hint">{warning || 'Look at the dot until it fills in'}</span>
+        <FaceChip eye={eye} />
+      </div>
+      <div
+        key={pointKey}
+        className={`calib-dot ${collecting ? 'is-collecting' : ''}`}
+        style={{ left: `${target[0] * 100}%`, top: `${target[1] * 100}%` }}
+      />
+      <span className="aim-calibration-escape">Esc to cancel</span>
+    </div>
+  )
+}
+
+function Review({
+  eye,
+  error,
+  onPlay,
+  onRecalibrate,
+}: {
+  eye: EyeTracker
+  error: number
+  onPlay: () => void
+  onRecalibrate: () => void
+}) {
+  const cursorRef = useCursor(eye, 'gaze')
+  const quality = qualityOf(error)
+
+  return (
+    <div className="aim-setup">
+      <Crosshair cursorRef={cursorRef} dimmed={!eye.faceFound} />
+      <div className="aim-setup-card">
+        <span className="aim-eyebrow">Calibration complete</span>
+        <h1 className="aim-title">
+          Quality: <span className={`aim-quality is-${quality.tone}`}>{quality.label}</span>
+        </h1>
+        <p className="aim-lede">
+          Look around the screen — the crosshair should follow your eyes.
+          {quality.tone === 'rough' && ' Tracking looks unreliable; recalibrating in better light usually helps.'}
+        </p>
+        <div className="aim-actions">
+          <button type="button" className="aim-btn is-primary" onClick={onPlay}>
+            Start round
+          </button>
+          <button type="button" className="aim-btn" onClick={onRecalibrate}>
+            Recalibrate
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+interface Target {
+  id: number
+  x: number
+  y: number
+  spawnedAt: number
+}
+
+interface RoundStats {
+  score: number
+  hits: number
+  misses: number
+  combo: number
+  bestCombo: number
+}
+
+const EMPTY_STATS: RoundStats = { score: 0, hits: 0, misses: 0, combo: 0, bestCombo: 0 }
+
+interface Marker {
+  id: number
+  x: number
+  y: number
+  hit: boolean
+}
+
+let nextId = 1
+
+function spawnTarget(existing: Target[], now: number): Target {
+  const w = window.innerWidth
+  const h = window.innerHeight
+  const margin = TARGET_R + 24
+  let best = { x: w / 2, y: h / 2 }
+  for (let i = 0; i < 40; i++) {
+    const candidate = {
+      x: margin + Math.random() * (w - margin * 2),
+      y: HUD_CLEARANCE + margin + Math.random() * (h - HUD_CLEARANCE - margin * 2),
+    }
+    best = candidate
+    if (existing.every((t) => Math.hypot(t.x - candidate.x, t.y - candidate.y) > HIT_R * 2 + 12)) break
+  }
+  return { id: nextId++, ...best, spawnedAt: now }
+}
+
+function Gridshot({
+  eye,
+  mode,
+  onToggleMode,
+  onFinish,
+  onQuit,
+}: {
+  eye: EyeTracker
+  mode: InputMode
+  onToggleMode: () => void
+  onFinish: (results: RoundResults) => void
+  onQuit: () => void
+}) {
+  const cursorRef = useCursor(eye, mode)
+  // Mutable round state lives in refs so the rAF loop and blink handler never
+  // see stale values; `view` is the snapshot React renders from.
+  const targetsRef = useRef<Target[]>([])
+  const statsRef = useRef<RoundStats>({ ...EMPTY_STATS })
+  const [view, setView] = useState<{ targets: Target[]; stats: RoundStats }>({ targets: [], stats: EMPTY_STATS })
+  const reactionsRef = useRef<number[]>([])
+  const startRef = useRef<number | null>(null)
+  const [countdown, setCountdown] = useState(3)
+  const [timeLeftTenths, setTimeLeftTenths] = useState(ROUND_MS / 100)
+  const [markers, setMarkers] = useState<Marker[]>([])
+  const onFinishRef = useRef(onFinish)
+
+  useEffect(() => {
+    onFinishRef.current = onFinish
+  }, [onFinish])
+
+  const syncView = useCallback(() => {
+    setView({ targets: targetsRef.current, stats: { ...statsRef.current } })
+  }, [])
+
+  const addMarker = useCallback((x: number, y: number, hit: boolean) => {
+    const marker = { id: nextId++, x, y, hit }
+    setMarkers((m) => [...m, marker])
+    window.setTimeout(() => setMarkers((m) => m.filter((k) => k.id !== marker.id)), 450)
+  }, [])
+
+  const shoot = useCallback(() => {
+    if (startRef.current === null) return
+    const c = cursorRef.current
+    if (!c) return
+    const now = performance.now()
+    const stats = statsRef.current
+    const hit = targetsRef.current.find((t) => Math.hypot(t.x - c.x, t.y - c.y) <= HIT_R)
+    if (hit) {
+      reactionsRef.current.push(now - hit.spawnedAt)
+      stats.score += 100 + stats.combo * 10
+      stats.hits += 1
+      stats.combo += 1
+      stats.bestCombo = Math.max(stats.bestCombo, stats.combo)
+      const others = targetsRef.current.filter((t) => t.id !== hit.id)
+      targetsRef.current = [...others, spawnTarget(others, now)]
+    } else {
+      stats.misses += 1
+      stats.combo = 0
+    }
+    addMarker(c.x, c.y, Boolean(hit))
+    syncView()
+  }, [addMarker, cursorRef, syncView])
+
+  useEffect(() => {
+    const begin = performance.now()
+    let raf = 0
+    let lastTenths = -1
+
+    const tick = () => {
+      raf = requestAnimationFrame(tick)
+      const now = performance.now()
+
+      if (startRef.current === null) {
+        const remaining = COUNTDOWN_MS - (now - begin)
+        if (remaining > 0) {
+          setCountdown(Math.ceil(remaining / 1000))
+          return
+        }
+        startRef.current = now
+        setCountdown(0)
+        const initial: Target[] = []
+        for (let i = 0; i < TARGET_COUNT; i++) initial.push(spawnTarget(initial, now))
+        targetsRef.current = initial
+        syncView()
+      }
+
+      const elapsed = now - startRef.current
+      const tenths = Math.max(0, Math.ceil((ROUND_MS - elapsed) / 100))
+      if (tenths !== lastTenths) {
+        lastTenths = tenths
+        setTimeLeftTenths(tenths)
+      }
+
+      const expired = targetsRef.current.filter((t) => now - t.spawnedAt > TARGET_TTL_MS)
+      if (expired.length > 0) {
+        const stats = statsRef.current
+        stats.misses += expired.length
+        stats.combo = 0
+        let alive = targetsRef.current.filter((t) => !expired.includes(t))
+        for (let i = 0; i < expired.length; i++) alive = [...alive, spawnTarget(alive, now)]
+        targetsRef.current = alive
+        syncView()
+      }
+
+      if (elapsed >= ROUND_MS) {
+        cancelAnimationFrame(raf)
+        const s = statsRef.current
+        const reactions = reactionsRef.current
+        onFinishRef.current({
+          score: s.score,
+          hits: s.hits,
+          misses: s.misses,
+          bestCombo: s.bestCombo,
+          avgReactionMs: reactions.length ? reactions.reduce((a, b) => a + b, 0) / reactions.length : null,
+        })
+      }
+    }
+    tick()
+    return () => cancelAnimationFrame(raf)
+  }, [syncView])
+
+  const { onBlink } = eye
+  useEffect(() => (mode === 'gaze' ? onBlink(shoot) : undefined), [onBlink, mode, shoot])
+
+  useEffect(() => {
+    const key = (e: KeyboardEvent) => {
+      if (e.code === 'Space') {
+        e.preventDefault()
+        shoot()
+      } else if (e.key === 'Escape') onQuit()
+      else if (e.key === 'm' || e.key === 'M') onToggleMode()
+    }
+    window.addEventListener('keydown', key)
+    return () => window.removeEventListener('keydown', key)
+  }, [shoot, onQuit, onToggleMode])
+
+  const { stats, targets } = view
+  const attempts = stats.hits + stats.misses
+  const accuracy = attempts ? Math.round((stats.hits / attempts) * 100) : 100
+  const faceLost = mode === 'gaze' && !eye.faceFound
+
+  return (
+    <div className="aim-playfield" onPointerDown={shoot}>
+      <div className="aim-hud" onPointerDown={(e) => e.stopPropagation()}>
+        <div className="aim-hud-stat">
+          <span className="aim-hud-label">Time</span>
+          <span className="aim-hud-value">{(timeLeftTenths / 10).toFixed(1)}</span>
+        </div>
+        <div className="aim-hud-stat">
+          <span className="aim-hud-label">Score</span>
+          <span className="aim-hud-value">{stats.score}</span>
+        </div>
+        <div className="aim-hud-stat">
+          <span className="aim-hud-label">Accuracy</span>
+          <span className="aim-hud-value">{accuracy}%</span>
+        </div>
+        <div className="aim-hud-stat">
+          <span className="aim-hud-label">Combo</span>
+          <span className="aim-hud-value">×{stats.combo}</span>
+        </div>
+        <div className="aim-hud-actions">
+          <button type="button" className="aim-chip-btn" onClick={onToggleMode}>
+            {mode === 'gaze' ? '👁 Gaze' : '🖱 Mouse'} · M
+          </button>
+          <button type="button" className="aim-chip-btn" onClick={onQuit}>
+            Quit
+          </button>
+        </div>
+      </div>
+
+      {targets.map((t) => (
+        <div
+          key={t.id}
+          className="aim-target"
+          style={{ left: t.x, top: t.y, width: TARGET_R * 2, height: TARGET_R * 2 }}
+        />
+      ))}
+
+      {markers.map((m) => (
+        <div key={m.id} className={`aim-marker ${m.hit ? 'is-hit' : 'is-miss'}`} style={{ left: m.x, top: m.y }} />
+      ))}
+
+      {countdown > 0 && <div className="aim-countdown">{countdown}</div>}
+      {faceLost && countdown === 0 && <div className="aim-banner">Face not found — look at the screen</div>}
+
+      <Crosshair cursorRef={cursorRef} dimmed={faceLost} />
+    </div>
+  )
+}
+
+function Results({
+  results,
+  onReplay,
+  onRecalibrate,
+  onExit,
+}: {
+  results: RoundResults
+  onReplay: () => void
+  onRecalibrate: () => void
+  onExit: () => void
+}) {
+  const attempts = results.hits + results.misses
+  const accuracy = attempts ? Math.round((results.hits / attempts) * 100) : 0
+
+  return (
+    <div className="aim-setup">
+      <div className="aim-setup-card">
+        <span className="aim-eyebrow">Round complete</span>
+        <h1 className="aim-title aim-score">{results.score}</h1>
+        <div className="aim-results">
+          <div>
+            <span className="aim-hud-label">Hits</span>
+            <span className="aim-hud-value">{results.hits}</span>
+          </div>
+          <div>
+            <span className="aim-hud-label">Accuracy</span>
+            <span className="aim-hud-value">{accuracy}%</span>
+          </div>
+          <div>
+            <span className="aim-hud-label">Avg reaction</span>
+            <span className="aim-hud-value">
+              {results.avgReactionMs === null ? '—' : `${Math.round(results.avgReactionMs)} ms`}
+            </span>
+          </div>
+          <div>
+            <span className="aim-hud-label">Best combo</span>
+            <span className="aim-hud-value">×{results.bestCombo}</span>
+          </div>
+        </div>
+        <div className="aim-actions">
+          <button type="button" className="aim-btn is-primary" onClick={onReplay}>
+            Play again
+          </button>
+          <button type="button" className="aim-btn" onClick={onRecalibrate}>
+            Recalibrate
+          </button>
+          <button type="button" className="aim-btn is-ghost" onClick={onExit}>
+            Home
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+export default function AimGame({ onExit }: { onExit: () => void }) {
+  const eye = useEyeTracker()
+  const [phase, setPhase] = useState<Phase>('setup')
+  const [mode, setMode] = useState<InputMode>('gaze')
+  const [calibrationError, setCalibrationError] = useState(0)
+  const [results, setResults] = useState<RoundResults | null>(null)
+  const [round, setRound] = useState(0)
+
+  const startRound = (nextMode: InputMode) => {
+    setMode(nextMode)
+    setRound((r) => r + 1)
+    setPhase('playing')
+  }
+
+  const finishCalibration = useCallback(
+    (model: CalibrationModel | null) => {
+      if (!model) {
+        setPhase('setup')
+        return
+      }
+      eye.setCalibration(model)
+      setCalibrationError(model.error)
+      setMode('gaze')
+      setPhase('review')
+    },
+    [eye],
+  )
+
+  const cancelCalibration = useCallback(() => setPhase('setup'), [])
+  const quitRound = useCallback(() => setPhase('setup'), [])
+  const toggleMode = useCallback(() => {
+    setMode((m) => (m === 'mouse' && eye.calibrated ? 'gaze' : 'mouse'))
+  }, [eye.calibrated])
+  const finishRound = useCallback((r: RoundResults) => {
+    setResults(r)
+    setPhase('results')
+  }, [])
+
+  return (
+    <div className={`aim phase-${phase} mode-${mode}`}>
+      <video
+        ref={eye.videoRef}
+        className={`aim-preview ${phase === 'setup' ? 'is-large' : ''}`}
+        muted
+        playsInline
+      />
+
+      {phase === 'setup' && (
+        <Setup
+          eye={eye}
+          onCalibrate={() => setPhase('calibrating')}
+          onPlay={() => startRound('gaze')}
+          onMouse={() => startRound('mouse')}
+          onExit={onExit}
+        />
+      )}
+      {phase === 'calibrating' && <Calibration eye={eye} onComplete={finishCalibration} onCancel={cancelCalibration} />}
+      {phase === 'review' && (
+        <Review
+          eye={eye}
+          error={calibrationError}
+          onPlay={() => startRound('gaze')}
+          onRecalibrate={() => setPhase('calibrating')}
+        />
+      )}
+      {phase === 'playing' && (
+        <Gridshot
+          key={round}
+          eye={eye}
+          mode={mode}
+          onToggleMode={toggleMode}
+          onFinish={finishRound}
+          onQuit={quitRound}
+        />
+      )}
+      {phase === 'results' && results && (
+        <Results
+          results={results}
+          onReplay={() => startRound(mode)}
+          onRecalibrate={() => setPhase('calibrating')}
+          onExit={onExit}
+        />
+      )}
+    </div>
+  )
+}
