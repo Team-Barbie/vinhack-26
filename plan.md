@@ -1,114 +1,205 @@
 ---
 name: Eye Tracking Aimlabs
-overview: Build a browser-based webcam eye tracker that calibrates gaze to screen coordinates, drives a smoothed on-screen cursor, and demos as an Aimlabs-style target game with blink-to-click.
+overview: Browser demo that maps webcam iris gaze to a virtual crosshair, then plays an Aimlabs-style Gridshot round with blink-to-shoot. Python MediaPipe tracker already exists as the algorithm prototype.
 todos:
   - id: scaffold
     content: Scaffold Vite + React + TS app, dark full-screen shell, webcam permission gate
-    status: pending
+    status: completed
   - id: tracker
-    content: Integrate MediaPipe Face Landmarker; extract iris/eye/head features each frame
-    status: pending
+    content: Port MediaPipe Face Landmarker loop from eye_tracking/; iris, blendshapes, head pose each frame
+    status: completed
   - id: calibrate
-    content: 9-point calibration UI, sample collection, polynomial/ridge screen mapping, sessionStorage
-    status: pending
+    content: 12-point calibration UI, 20–30 frame samples, ridge polynomial + yaw/pitch mapping, sessionStorage
+    status: completed
   - id: cursor-blink
-    content: One Euro smoothed virtual crosshair + blink-to-click with cooldown
-    status: pending
+    content: One Euro smoothed virtual crosshair + blink-to-click with cooldown and dwell fallback
+    status: completed
   - id: game
-    content: "Gridshot Aimlabs round: spawn targets, blink-hit, score/combo/timer, results + replay"
-    status: pending
+    content: "Gridshot: 3 targets, 30s, blink-hit, score/combo/timer, results + replay/recalibrate"
+    status: completed
+  - id: polish
+    content: Debug overlay (D), face-lost freeze, mouse fallback, CDN model + local backup, demo lighting copy
+    status: completed
 isProject: false
 ---
 
 # Eye-Tracking Cursor + Aimlabs Demo
 
-Greenfield repo ([README.md](README.md) only). Stack: **Vite + React + TypeScript**, all client-side. No backend. MediaPipe Face Landmarker runs in the browser on the laptop webcam.
+Webcam gaze → calibrated on-screen crosshair → blink to shoot. The **demo is a browser app** (Vite + React + TypeScript, all client-side). Browsers cannot move the OS mouse, so the cursor is a **virtual overlay inside the window**.
 
-A web app is the right fit: `getUserMedia`, a playable canvas game, and no OS-level mouse permission. The cursor is a **virtual overlay inside the app** (browsers cannot move the real system pointer).
+Python under `eye_tracking/` is the working MediaPipe prototype (iris, EAR, blinks, head pose, 9-point polynomial). Port those feature formulas into TS; do not keep OpenCV as the demo path.
+
+## Demo in one sentence
+
+Sit ~50–80 cm from a laptop, calibrate by blinking at 12 dots, then clear Gridshot targets with your eyes.
+
+## Already in the repo
+
+| Piece | Status | Use in the web app |
+| --- | --- | --- |
+| [`eye_tracking/tracker.py`](eye_tracking/tracker.py) | Done | Port iris gaze, blendshape fusion, blink hysteresis, Euler-from-matrix |
+| [`eye_tracking/constants.py`](eye_tracking/constants.py) | Done | Same landmark indices and blink thresholds |
+| [`models/face_landmarker.task`](models/face_landmarker.task) | Downloaded | Copy into `public/models/` as CDN fallback |
+| OpenCV HUD (`python main.py`) | Lab harness | Keep for algorithm debugging; not the judged demo |
 
 ## User flow
 
 ```mermaid
 flowchart LR
   landing[Landing] --> camera[Camera permission]
-  camera --> calibrate[9-point calibration]
-  calibrate --> play[Aimlabs round]
+  camera --> calibrate[12-point calibration]
+  calibrate --> quality{Fit quality OK?}
+  quality -->|no| calibrate
+  quality -->|yes| play[Aimlabs round]
   play --> results[Score screen]
   results --> play
   results --> calibrate
 ```
 
+1. **Landing** — one-line pitch, lighting hint, **Start**.
+2. **Camera** — `getUserMedia({ video: { facingMode: "user", width: 1280, height: 720 } })`. Deny → retry copy, no blank screen.
+3. **Calibration** — 12 targets, one at a time. Look + **blink** to lock (dwell 0.8s as backup). Tiny mirrored webcam + face-found light stays in the corner.
+4. **Quality gate** — if mean residual > ~8% of min(viewport w, h), offer **Retry**.
+5. **Game** — gaze moves the crosshair; blink shoots.
+6. **Results** — score, accuracy, avg reaction, combo max; **Replay** or **Recalibrate**.
 
-
-1. Landing: short pitch, **Start**, camera permission.
-2. Calibration: look at each target; blink (or dwell) to lock a sample.12 point calibration. 
-3. Game: gaze moves the crosshair; blink shoots.
-4. Results: score, accuracy, avg reaction time; **Replay** or **Recalibrate**.
+Single-page machine in `App.tsx`: `landing → camera → calibrate → playing → results`.
 
 ## Gaze pipeline
 
 ```mermaid
 flowchart TB
-  webcam[Webcam frames] --> mp[MediaPipe Face Landmarker]
-  mp --> features[Eye and head features]
-  features --> mapper[Calibrated screen mapper]
-  mapper --> filter[One Euro smoother]
+  webcam[Webcam frames] --> mp[MediaPipe Face Landmarker VIDEO]
+  mp --> features[Iris + blendshape + head pose vector]
+  features --> mapper[Ridge polynomial screen mapper]
+  mapper --> filter[One Euro + deadzone]
   filter --> cursor[Virtual crosshair]
-  mp --> blink[Blink detector]
+  mp --> blink[Blink state machine]
   blink --> click[Shoot if crosshair on target]
 ```
 
+### MediaPipe
 
+- Package: `@mediapipe/tasks-vision`
+- Model: Face Landmarker float16 (478 landmarks, blendshapes, facial matrix)
+- Mode: `VIDEO` via `detectForVideo(video, timestampMs)` inside `requestAnimationFrame`
+- WASM/model: jsDelivr CDN first, `public/models/face_landmarker.task` if CDN fails
+- Mirror the preview with CSS; **do not flip landmark x** if the video element is already mirrored visually — pick one convention and stick to it (preview mirrored, compute on the unmirrored frame, then `gx' = 1 - gx` for screen space)
 
-**Tracking:** `@mediapipe/tasks-vision` Face Landmarker (VIDEO mode, 478 landmarks + blendshapes).
+### Per-frame features
 
-**Per-frame features** (this is the “normalize looking across the laptop” step):
+Reuse the Python indices (anatomical left/right):
 
-- Iris center vs eye corners, both eyes, averaged:
-  - Horizontal: iris between inner/outer corners (`33/133`, `362/263`; iris centers `468`, `473`)
-  - Vertical: iris between eyelid landmarks
-- Head pose from the facial transformation matrix (yaw/pitch) so small head movement does not dump the cursor
-- Optional blendshapes (`eyeLookIn/Out/Up/Down`) as extra regressor inputs
+| Signal | Left (person) | Right (person) |
+| --- | --- | --- |
+| Inner / outer corner | 362 / 263 | 133 / 33 |
+| Upper / lower lid | 386 / 374 | 159 / 145 |
+| Iris center | 473 | 468 |
+| Iris ring | 474–477 | 469–472 |
+| Blink blendshape | `eyeBlinkLeft` | `eyeBlinkRight` |
 
-Raw iris offset is in **eye space** (roughly 0–1). Calibration turns that into **screen pixels**.
+**Iris gaze (per eye, 0–1 in eye space):**
 
-**Mapping:** after calibration, fit two ridge regressions (x and y), 2nd-order polynomial:
+```
+gx = (iris.x - min(inner.x, outer.x)) / (abs(outer.x - inner.x) + eps)
+gy = (iris.y - min(upper.y, lower.y)) / (abs(lower.y - upper.y) + eps)
+```
 
-`screen = w0 + w1*gx + w2*gy + w3*gx^2 + w4*gy^2 + w5*gx*gy + w6*yaw + w7*pitch`
+Average both eyes. Fuse **0.65 iris + 0.35 blendshape look** (`eyeLookIn/Out/Up/Down` left/right), same mix as [`EyeTracker.update`](eye_tracking/tracker.py).
 
-Store weights in `sessionStorage` so refresh can skip recalibration until the user moves.
+**Head pose:** 4×4 facial transform → pitch / yaw / roll (degrees). Include yaw and pitch in the mapper so small head motion does not throw the cursor.
 
-**Smoothing:** [One Euro filter](https://gery.casiez.net/1euro/) on the mapped point (better than a plain moving average for noisy gaze). Small deadzone so the crosshair does not jitter on a target.
+**Feature vector `φ` (length 8):**
 
-**Blink-to-click:** MediaPipe blendshapes `eyeBlinkLeft` / `eyeBlinkRight` both above ~0.45 for 2–4 frames, then a ~500ms cooldown. Ignore long closes. Blink is also used to **confirm each calibration point**.
+```
+[1, gx, gy, gx², gy², gx·gy, yaw/45, pitch/30]
+```
 
-## Calibration UI
+Yaw/pitch scaled so they sit on a similar range to gaze.
 
-12-point grid (corners, edge midpoints, center). One point at a time, full-screen, high contrast.
+Hold last good vector if the face drops for < 200ms; after that freeze the cursor and show **Face not found**.
 
-- Point pulses; user looks at it and blinks
-- Record ~20–30 frames of features + that screen coordinate (captures micro-jitter, not one noisy sample)
-- Progress 1/9 … 9/9; reject a point if face/iris is missing
-- Quality check: if residual error is high, offer **retry** before the game
+## Calibration
 
-Keep the user ~50–80cm from the screen, face lit, head mostly still. Show a tiny mirrored webcam with a face-found indicator.
+**12-point 4×3 grid** (normalized viewport, inset so laptop bezels / camera housing do not steal corners):
 
-## Aimlabs-style game
+```
+(0.10, 0.12) (0.37, 0.12) (0.63, 0.12) (0.90, 0.12)
+(0.10, 0.50) (0.37, 0.50) (0.63, 0.50) (0.90, 0.50)
+(0.10, 0.88) (0.37, 0.88) (0.63, 0.88) (0.90, 0.88)
+```
 
-Canvas (or absolutely positioned DOM targets) on a dark full-screen playfield. Virtual crosshair follows filtered gaze; it does not use the OS mouse except as a fallback debug toggle.
+Per point:
 
-**MVP mode — Gridshot (30s):**
+1. Pulse the dot; require face + both irises.
+2. On blink (or 0.8s dwell), record **25 frames** of `φ` paired with that `(sx, sy)` in **viewport pixels**.
+3. Reject the point if face/iris missing during the buffer; flash and retry that point.
+4. Progress `1/12 … 12/12`.
 
-- 3 targets on screen at once
-- Blink while the crosshair is inside a target = hit (score + combo)
-- Miss blink = miss (combo reset)
-- Target times out = miss
-- HUD: time, score, accuracy, combo
-- End screen with stats
+**Fit:** two independent ridge regressions (x and y):
 
-Keep hit radius slightly generous (~48–72px). Webcam gaze is typically a few cm off, not pixel-perfect; the game should feel fair after a good calibration.
+```
+(ΦᵀΦ + λI) w = Φᵀ t    with λ ≈ 1e-2,  I[0,0] = 0  (do not shrink the intercept)
+```
 
-Optional if time: a second **Tracking** mode (one moving target, dwell or blink).
+Predict `screen = (clamp(φ·w_x, 0, W), clamp(φ·w_y, 0, H))`. Refit only on calibration end (and on window resize: scale stored targets to the new viewport, or ask to recalibrate if size changed > 10%).
+
+**Persist** `{ wX, wY, viewport, savedAt }` in `sessionStorage` under `vinhack-gaze-v1`. Skip calibration on refresh unless the user clicks Recalibrate or the quality gate fails.
+
+**Quality:** mean Euclidean residual of sample means vs targets. Good < 6% of min(W,H); warn 6–8%; retry above that.
+
+Keep the sitter **50–80 cm** away, face lit from the front, head mostly still. Show that on the landing and calibration chrome.
+
+## Cursor and blink
+
+**One Euro filter** on mapped x and y separately ([Casiez et al.](https://gery.casiez.net/1euro/)):
+
+- `minCutoff = 1.0`
+- `beta = 0.007`
+- `dCutoff = 1.0`
+
+Then a **4px deadzone** around the last published point so the reticle does not shimmer on a target.
+
+**Blink-to-click** (port of Python hysteresis):
+
+| Constant | Value |
+| --- | --- |
+| Close if both `eyeBlink*` ≥ | 0.45 **or** EAR ≤ 0.18 |
+| Re-open if both blink < | 0.28 **and** EAR > 0.22 |
+| Confirm after | 2–4 consecutive closed frames (~50–80ms) |
+| Ignore if closed longer than | 400ms (squint / look-down) |
+| Cooldown after a shot | 500ms |
+
+Blink also confirms calibration points. Optional debug: hold `Shift` to shoot with the mouse.
+
+## Gridshot (MVP)
+
+Dark full-screen playfield. 30 seconds. **3 targets** live at once.
+
+| Rule | Detail |
+| --- | --- |
+| Spawn | Random position, margin 80px, min 160px from other targets |
+| Size | 56px radius visual; **hit radius 64px** (webcam gaze is centimeters off) |
+| Lifetime | 1800ms, then timeout miss |
+| Hit | Blink while filtered crosshair is inside hit radius |
+| Miss blink | Blink while not on a target → combo reset |
+| Score | `100 * combo` per hit; combo +1 on hit, 0 on miss/timeout |
+| HUD | time, score, accuracy `hits / (hits+misses+timeouts)`, combo |
+| End | score, accuracy, avg RT (spawn→hit), max combo, shots fired |
+
+Mouse fallback (`F`) only for judging if tracking dies mid-demo — hide that in the HUD unless debug is on.
+
+Stretch if time: **Tracking** mode (one mover, dwell 300ms or blink).
+
+## UI
+
+Aimlabs-adjacent: near-black `#0b0d10`, neon target `#3dff7a`, thin white crosshair with a 2px gap at center, IBM Plex / Inter. No component library.
+
+- Landing: title, 3-step strip (calibrate → aim → blink), Start
+- Calibration: one large pulsing disc, `n/12`, webcam pip
+- Play: canvas or absolutely positioned targets; cursor is a DOM overlay so it stays sharp
+- Results: big score, three stats, Replay / Recalibrate
+- `D` toggles debug (mesh, raw gx/gy, blink score, residual)
 
 ## App structure
 
@@ -116,14 +207,15 @@ Optional if time: a second **Tracking** mode (one moving target, dwell or blink)
 src/
   main.tsx, App.tsx, index.css
   lib/
-    faceLandmarker.ts    # load model, per-frame landmarks + blendshapes
-    gazeFeatures.ts      # iris/eye/head vector
-    calibrationFit.ts    # ridge/polynomial fit + predict
-    oneEuro.ts           # smoother
-    blink.ts             # blink state machine
+    faceLandmarker.ts     # FilesetResolver + detectForVideo
+    gazeFeatures.ts       # port of tracker.py feature math
+    calibrationFit.ts     # ridge solve + predict + residual
+    oneEuro.ts
+    blink.ts              # hysteresis + cooldown
+    storage.ts            # sessionStorage schema
   hooks/
     useCamera.ts
-    useEyeTracker.ts     # rAF loop → features, cursor, blink events
+    useEyeTracker.ts      # rAF → features, cursor px, blink events
   components/
     Landing.tsx
     CameraGate.tsx
@@ -131,29 +223,65 @@ src/
     GazeCursor.tsx
     AimGame.tsx
     Results.tsx
-    DebugOverlay.tsx     # webcam + landmarks, toggle with D
+    DebugOverlay.tsx
+    WebcamPip.tsx
+public/
+  models/face_landmarker.task
 ```
 
-Single-page state machine in `App.tsx`: `landing → camera → calibrate → playing → results`.
+Keep `eye_tracking/` as the Python lab app; do not mix it into the Vite graph.
 
-Styling: dark Aimlabs-like (near-black, neon targets, thin crosshair). No component library required.
+## Types (contract)
+
+```ts
+type GazeFeatures = {
+  gx: number; gy: number;
+  yaw: number; pitch: number;
+  ear: number;
+  blinkL: number; blinkR: number;
+  faceFound: boolean;
+};
+
+type CalibModel = {
+  wX: number[]; wY: number[];
+  viewport: { w: number; h: number };
+};
+
+type TrackerFrame = {
+  features: GazeFeatures;
+  screen: { x: number; y: number } | null; // null until calibrated
+  blinkPulse: boolean;                     // one-shot rising edge
+};
+```
+
+`useEyeTracker` owns MediaPipe, rAF, filter, blink machine. Views only consume `TrackerFrame`.
 
 ## Demo robustness
 
-- HTTPS or `localhost` required for the webcam
-- If the face is lost: freeze the cursor, show “Face not found”
-- `D` toggles debug overlay (landmarks, raw gaze, EAR/blink value)
-- Mouse fallback for judging the game if tracking dies mid-demo
-- Recalibrate button always available
-- Load the MediaPipe WASM/model from CDN with a local copy as backup if the network is bad on stage
+- HTTPS or `localhost` for the webcam
+- Face lost → freeze cursor + banner; do not let the reticle drift
+- Recalibrate always on screen (corner link)
+- If MediaPipe init fails: error with “refresh / use Chrome” — Chromium first for the demo
+- Preload WASM + model on the landing so calibration does not stall
+- Cap processing to video frame timestamps (`lastVideoTime`) so we do not run inference twice on the same frame
+- Prefer 720p@30; drop debug mesh if FPS < 20
 
-## Out of scope (unless extra time)
+## Out of scope
 
 - Moving the real OS mouse
-- Tobii / hardware eye trackers
-- Multiplayer, accounts, backend
-- Perfect pixel aiming (webcam cannot do this)
+- Tobii / hardware trackers
+- Accounts, backend, multiplayer
+- Pixel-perfect aim (webcam cannot do this)
 
-## Implementation order
+## Build order
 
-Build in this order so each step is demoable: camera + face mesh → raw iris cursor → calibration mapper → blink → game → polish.
+Each step should be demoable before the next.
+
+1. **Scaffold + camera** — full-screen shell, permission, mirrored pip. *Accept:* webcam image, no console errors.
+2. **Tracker** — landmarks + iris dots + raw gx/gy debug. *Accept:* looking left/right moves a raw dot the right way.
+3. **Calibration mapper** — 12 dots, ridge fit, mapped cursor. *Accept:* looking at corners parks the cursor near those corners.
+4. **One Euro + blink** — stable reticle, blink logs a click. *Accept:* blink does not fire twice; squint does not spray clicks.
+5. **Gridshot + results** — 30s round, HUD, replay. *Accept:* three targets, score increments on blink-hit.
+6. **Polish** — D overlay, face-lost, mouse fallback, model backup, landing copy.
+
+Do not start the game until step 3 feels fair. A pretty Gridshot with a drunk cursor loses the demo.
