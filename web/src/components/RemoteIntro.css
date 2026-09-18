@@ -1,0 +1,21 @@
+.remote-intro {
+  min-height: 100svh;
+  display: grid;
+  place-items: center;
+  background: #050505;
+}
+
+.remote-intro-action {
+  min-height: 54px;
+  padding: 0 28px;
+  border: 1px solid #f7f7f5;
+  background: #f7f7f5;
+  color: #050505;
+  font-weight: 700;
+  transition: background var(--fast) var(--ease), color var(--fast) var(--ease);
+}
+
+.remote-intro-action:hover {
+  background: #050505;
+  color: #f7f7f5;
+}

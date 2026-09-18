@@ -318,7 +318,7 @@ export default function NeedsBoard({ onExit }: { onExit: () => void }) {
         </button>
       </div>
 
-      {screen !== 'gaze' && <EyeRemote key={remoteVersion} eye={eye} root={boardRef} screenKey={screen} />}
+      {screen !== 'gaze' && <EyeRemote key={remoteVersion} eye={eye} root={boardRef} screenKey={screen} autoStart />}
       {screen !== 'gaze' && (
         <div className="quick-answer">
           <span className="quick-answer-label">Answering a question?</span>

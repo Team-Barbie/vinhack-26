@@ -5,13 +5,13 @@ import { classifyDirection, directionSignal, DIRECTIONS, medianFeatures, nextRem
 
 const SYMBOLS: Record<Direction, string> = { center: '●', left: '←', right: '→', up: '↑', down: '↓' }
 
-export default function EyeRemote({ eye, root, screenKey }: {
-  eye: EyeTracker; root: RefObject<HTMLDivElement | null>; screenKey: string
+export default function EyeRemote({ eye, root, screenKey, autoStart = false }: {
+  eye: EyeTracker; root: RefObject<HTMLDivElement | null>; screenKey: string; autoStart?: boolean
 }) {
-  const [step, setStep] = useState(-1)
+  const [step, setStep] = useState(autoStart ? 0 : -1)
   const [profile, setProfile] = useState<RemoteProfile | null>(null)
   const [paused, setPaused] = useState(false)
-  const [status, setStatus] = useState('Set up your eye remote to begin')
+  const [status, setStatus] = useState(autoStart ? 'Starting eye remote setup' : 'Set up your eye remote to begin')
   const [progress, setProgress] = useState(0)
   const [selectedLabel, setSelectedLabel] = useState('Call Nurse')
   const [detected, setDetected] = useState<Direction>('center')
