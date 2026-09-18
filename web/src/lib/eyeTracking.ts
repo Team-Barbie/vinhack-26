@@ -102,6 +102,14 @@ function earToBlink(ear: number): number {
   return Math.min(1, Math.max(0, (open - ear) / (open - closed)))
 }
 
+// Blendshapes are the blink signal. EAR only helps once a close is already
+// underway — taking max(blend, EAR) marks naturally narrow open eyes as shut.
+function lidScore(blend: number, earBlink: number): number {
+  if (blend < 0.04 && earBlink > 0.55) return earBlink
+  if (blend >= 0.2) return Math.max(blend, blend * 0.7 + earBlink * 0.3)
+  return blend
+}
+
 function blendScore(blends: Map<string, number>, name: string): number {
   return blends.get(name) ?? 0
 }
@@ -154,10 +162,10 @@ export class GazeTracker {
 
     const earL = earToBlink(earOf(landmarks, LEFT_EYE, vw, vh))
     const earR = earToBlink(earOf(landmarks, RIGHT_EYE, vw, vh))
-    const blinkL = Math.max(blendScore(blends, LEFT_EYE.blinkBlendshape), earL)
-    const blinkR = Math.max(blendScore(blends, RIGHT_EYE.blinkBlendshape), earR)
+    const blinkL = lidScore(blendScore(blends, LEFT_EYE.blinkBlendshape), earL)
+    const blinkR = lidScore(blendScore(blends, RIGHT_EYE.blinkBlendshape), earR)
     const lid = Math.max(blinkL, blinkR)
-    const bothClosed = lid >= 0.55
+    const bothClosed = lid >= 0.4
     const eyesOpen = lid < 0.22
 
     return {

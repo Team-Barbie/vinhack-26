@@ -226,10 +226,8 @@ export function useEyeTracker() {
           })
           if (!blinking && filtered) blink.pushGaze(filtered, ts)
           snapshotRef.current = {
-            // The remote uses actual blendshapes when available. Fixed EAR
-            // thresholds can label naturally narrow, open eyes as closed.
-            blinkL: result.faceBlendshapes?.[faceIndex]?.categories.find((c) => c.categoryName === 'eyeBlinkLeft')?.score ?? frame.blinkL,
-            blinkR: result.faceBlendshapes?.[faceIndex]?.categories.find((c) => c.categoryName === 'eyeBlinkRight')?.score ?? frame.blinkR,
+            blinkL: frame.blinkL,
+            blinkR: frame.blinkR,
             detectedFace: frame.faceFound,
             faceFound: frame.faceFound || blinking,
             eyesClosed: blinking,

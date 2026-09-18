@@ -64,12 +64,19 @@ export class BlinkDetector {
     if (now <= this.lastAt) return false
     this.lastAt = now
 
+    const score = lidScore(frame)
+
+    // Closing lids often drop the face for a few frames. Keep an in-progress
+    // blink alive instead of treating that as a lost track.
     if (!frame.faceFound) {
-      if (this.frozen) this.peak = Math.max(this.peak, 0.7)
+      if (this.frozen) {
+        this.peak = Math.max(this.peak, 0.7)
+        return false
+      }
+      if (this.armed && this.lastScore >= 0.42) this.freeze(now, Math.max(this.lastScore, 0.55))
       return false
     }
 
-    const score = lidScore(frame)
     if (this.lastScore < 0) {
       this.lastScore = score
       return false
@@ -77,8 +84,8 @@ export class BlinkDetector {
     const ds = score - this.lastScore
     this.lastScore = score
 
-    const closing = (ds > 0.1 && score > 0.2) || score > 0.55
-    const opened = this.frozen && ((this.peak - score >= 0.14 && ds <= 0.02) || (score < 0.18 && ds < 0.03))
+    const closing = (ds > 0.1 && score > 0.28) || score > 0.48
+    const opened = this.frozen && ((this.peak - score >= 0.14 && ds <= 0.03) || score < 0.2)
 
     if (!this.frozen) {
       if (this.armed && closing) this.freeze(now, score)
@@ -92,10 +99,10 @@ export class BlinkDetector {
     const duration = now - this.closingAt
     this.frozen = false
     this.armed = true
-    this.holdUntil = now + 240
+    this.holdUntil = now + 220
     this.aim = null
-    const blinked = this.peak >= 0.26 && duration >= 28 && duration <= 700
-    const shot = blinked && now - this.lastFireAt >= 220
+    const blinked = this.peak >= 0.45 && duration >= 260 && duration <= 1000
+    const shot = blinked && now - this.lastFireAt >= 320
     this.peak = 0
     if (shot) this.lastFireAt = now
     return shot
