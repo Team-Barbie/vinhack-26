@@ -15,32 +15,6 @@
 
 /* ---------- Camera preview ---------- */
 
-.aim-preview {
-  position: fixed;
-  right: 20px;
-  bottom: 20px;
-  z-index: 30;
-  width: 180px;
-  aspect-ratio: 16 / 9;
-  object-fit: cover;
-  border: 1px solid var(--glass-border);
-  border-radius: var(--r-md);
-  background: var(--surface);
-  box-shadow: var(--shadow-float);
-  transform: scaleX(-1);
-  pointer-events: none;
-  transition: width var(--slow) var(--ease), opacity var(--slow) var(--ease);
-}
-
-.aim-preview.is-large {
-  width: 300px;
-}
-
-.aim.phase-calibrating .aim-preview {
-  width: 280px;
-  opacity: 1;
-}
-
 .eye-landmark-overlay {
   position: fixed;
   right: 20px;

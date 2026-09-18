@@ -40,17 +40,7 @@
   box-shadow: 0 0 0 7px var(--accent-tint), var(--shadow-float);
   scroll-margin-block: 155px 30px;
 }
-.remote-setup { position: fixed; inset: 0; z-index: 60; background: rgba(6, 6, 6, 0.97); }
-.remote-setup-copy { position: absolute; top: 22%; left: 24%; right: 24%; text-align: center; }
-.remote-setup-copy p { color: var(--text-dim); }
-.remote-setup-copy progress { display: block; width: 180px; margin: 20px auto; accent-color: var(--accent); }
-.remote-dot { position: absolute; width: 70px; height: 70px; display: grid; place-items: center; border-radius: 50%; background: var(--accent); color: var(--accent-ink); font-size: 42px; transform: translate(-50%, -50%); box-shadow: 0 0 40px var(--accent-glow); }
-.remote-dot-center { left: 50%; top: 50%; }
-.setup-center .remote-setup-copy { top: auto; bottom: 5%; }
-.remote-dot-left { left: 8%; top: 50%; }
-.remote-dot-right { left: 92%; top: 50%; }
-.remote-dot-up { left: 50%; top: 8%; }
-.remote-dot-down { left: 50%; top: 90%; }
+
 @media (prefers-reduced-motion: reduce) {
   .needs-board button { transition: none; }
 }
@@ -340,39 +330,6 @@
   min-height: 132px;
 }
 
-.board-cam {
-  position: fixed;
-  right: 18px;
-  bottom: 18px;
-  z-index: 40;
-  width: 168px;
-  aspect-ratio: 16 / 9;
-  object-fit: cover;
-  border: 1px solid var(--glass-border);
-  border-radius: var(--r-md);
-  background: #111;
-  transform: scaleX(-1);
-  pointer-events: none;
-}
-
-.board-cam.is-large {
-  width: 280px;
-}
-
-.board-cursor {
-  position: fixed;
-  top: 0;
-  left: 0;
-  z-index: 50;
-  width: 22px;
-  height: 22px;
-  margin: -11px 0 0 -11px;
-  border: 3px solid var(--accent);
-  border-radius: 50%;
-  box-shadow: 0 0 0 6px var(--accent-tint);
-  pointer-events: none;
-}
-
 .pager-banner {
   position: sticky;
   top: 0;
@@ -384,38 +341,6 @@
   font-size: 1.2rem;
   font-weight: 700;
   text-align: center;
-}
-
-.board-setup {
-  margin: auto;
-  display: flex;
-  max-width: 720px;
-  flex-direction: column;
-  gap: 16px;
-  padding: 36px;
-  border: 1px solid var(--glass-border);
-  border-radius: var(--r-lg);
-  background: var(--surface);
-}
-
-.board-setup h1 {
-  margin: 0;
-  font-size: 2rem;
-}
-
-.board-setup-eyebrow {
-  font-weight: 700;
-  color: var(--muted);
-}
-
-.board-setup-error {
-  color: #eb484d;
-}
-
-.board-setup-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
 }
 
 .need-tile.is-gaze {

@@ -1,9 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { useEyeTracker } from '../hooks/useEyeTracker'
-import { Calibration, FaceChip } from './AimGame'
+import { useEye } from '../hooks/EyeTrackerProvider'
 import GazePhraseBoard from './GazePhraseBoard'
 import EyeRemote from './EyeRemote'
-import './AimGame.css'
 import './NeedsBoard.css'
 
 interface NeedTile {
@@ -87,12 +85,10 @@ function speak(text: string) {
   window.speechSynthesis.speak(utterance)
 }
 
-export default function NeedsBoard({ onExit }: { onExit: () => void }) {
-  const eye = useEyeTracker()
+export default function NeedsBoard({ onExit, onRecalibrate }: { onExit: () => void; onRecalibrate: () => void }) {
+  const eye = useEye()
   const [screen, setScreen] = useState<Screen>('main')
-  const [boardPhase, setBoardPhase] = useState<'setup' | 'calibrating' | 'board'>('board')
   const boardRef = useRef<HTMLDivElement | null>(null)
-  const [remoteVersion, setRemoteVersion] = useState(0)
   const [answerFlash, setAnswerFlash] = useState<'yes' | 'no' | null>(null)
   const [spokenTile, setSpokenTile] = useState<string | null>(null)
   const [spokenMessage, setSpokenMessage] = useState('')
@@ -160,59 +156,8 @@ export default function NeedsBoard({ onExit }: { onExit: () => void }) {
 
   const { title, tiles } = SCREENS[screen]
 
-
-  if (boardPhase === 'calibrating') {
-    return (
-      <div className="needs-board">
-        <video ref={eye.videoRef} className="board-cam" muted playsInline />
-        <Calibration
-          eye={eye}
-          onComplete={(model) => {
-            if (!model) {
-              setBoardPhase('setup')
-              return
-            }
-            eye.setCalibration(model)
-            setBoardPhase('board')
-          }}
-          onCancel={() => setBoardPhase('setup')}
-        />
-      </div>
-    )
-  }
-
-  if (boardPhase === 'setup') {
-    const ready = eye.status === 'ready' && eye.faceFound
-    return (
-      <div className="needs-board">
-        <video ref={eye.videoRef} className="board-cam is-large" muted playsInline />
-        <div className="board-setup">
-          <span className="board-setup-eyebrow">GazeBridge</span>
-          <h1>Set up eye tracking</h1>
-          <p>Sit about an arm's length from the laptop, keep your head still, and follow each dot with your eyes. It takes about 15 seconds.</p>
-          <FaceChip eye={eye} />
-          {eye.status === 'error' && <p className="board-setup-error">{eye.error}</p>}
-          <div className="board-setup-actions">
-            <button type="button" className="home-btn" disabled={!ready} onClick={() => setBoardPhase('calibrating')}>
-              {eye.calibrated ? 'Recalibrate' : 'Start calibration'}
-            </button>
-            {eye.calibrated && (
-              <button type="button" className="home-btn" disabled={!ready} onClick={() => setBoardPhase('board')}>
-                Use saved calibration
-              </button>
-            )}
-            <button type="button" className="home-btn" onClick={() => setBoardPhase('board')}>
-              Skip and use touch
-            </button>
-          </div>
-        </div>
-      </div>
-    )
-  }
-
   return (
     <div ref={boardRef} className={`needs-board screen-${screen}`}>
-      <video ref={eye.videoRef} className="board-cam" muted playsInline />
       {pager && <div className="pager-banner" role="status">{pager}</div>}
       <audio
         ref={audioRef}
@@ -225,8 +170,8 @@ export default function NeedsBoard({ onExit }: { onExit: () => void }) {
         <button type="button" className="home-btn" onClick={onExit}>
           Home
         </button>
-        <button type="button" className="home-btn" onClick={() => screen === 'gaze' ? setBoardPhase('calibrating') : setRemoteVersion((v) => v + 1)}>
-          {screen === 'gaze' ? 'Recalibrate' : 'Reset remote'}
+        <button type="button" className="home-btn" onClick={onRecalibrate}>
+          Calibrate again
         </button>
         <div className="nav-tabs">
           <button
@@ -267,7 +212,7 @@ export default function NeedsBoard({ onExit }: { onExit: () => void }) {
         </button>
       </div>
 
-      {screen !== 'gaze' && <EyeRemote key={remoteVersion} eye={eye} root={boardRef} screenKey={screen} />}
+      {screen !== 'gaze' && <EyeRemote eye={eye} root={boardRef} screenKey={screen} />}
       {screen !== 'gaze' && (
         <div className="quick-answer">
           <span className="quick-answer-label">Answer a question</span>

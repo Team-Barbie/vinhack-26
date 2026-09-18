@@ -21,16 +21,16 @@ export function Privacy({ onExit }: { onExit: () => void }) {
     <LegalPage title="Privacy" onExit={onExit}>
       <h2>Camera</h2>
       <p>
-        GazeBridge asks for your camera only when you open the Patient Board or the Aim Trainer. Video frames are
+        GazeBridge turns on your camera when you open it, so it can calibrate and follow your eyes. Video frames are
         analysed in your browser to find your face and eyes. Frames are never recorded, saved, or sent anywhere.
-        The camera turns off when you leave those screens.
+        The camera turns off when you close the tab.
       </p>
 
       <h2>What is stored</h2>
       <p>
-        Your gaze calibration is kept in your browser's session storage so you don't have to recalibrate after a
-        refresh. It is a handful of numbers, not an image, and it is deleted when you close the tab. Nothing else
-        is stored. There are no accounts, cookies, or analytics.
+        Your eye calibration is saved in this browser's local storage so you only have to calibrate once. It is a
+        handful of numbers describing how your eyes move, not an image. It stays until you calibrate again or clear
+        this site's data. Nothing else is stored. There are no accounts, cookies, or analytics.
       </p>
 
       <h2>Network requests</h2>

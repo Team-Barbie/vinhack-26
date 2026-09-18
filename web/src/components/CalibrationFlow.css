@@ -1,0 +1,41 @@
+.calib-pad {
+  display: grid;
+  width: min(360px, 100%);
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+
+.calib-pad-key {
+  display: grid;
+  min-height: 56px;
+  place-items: center;
+  border: 1px solid var(--glass-border);
+  border-radius: var(--r-md);
+  background: var(--glass-tint);
+  color: var(--text-dim);
+  font-weight: 700;
+  transition: background var(--fast) var(--ease), border-color var(--fast) var(--ease), color var(--fast) var(--ease);
+}
+
+.calib-pad-key.is-up {
+  grid-column: 2;
+}
+
+.calib-pad-key.is-left {
+  grid-column: 1;
+}
+
+.calib-pad-key.is-down {
+  grid-column: 2;
+}
+
+.calib-pad-key.is-active {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+
+.calib-flow-note {
+  color: var(--text-dim);
+  line-height: 1.55;
+}

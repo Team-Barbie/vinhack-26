@@ -1,6 +1,6 @@
 import './Home.css'
 
-export type Destination = 'board' | 'game' | 'privacy' | 'terms'
+export type Destination = 'board' | 'game' | 'calibrate' | 'privacy' | 'terms'
 
 export default function Home({ onSelect }: { onSelect: (destination: Destination) => void }) {
   return (
@@ -30,7 +30,7 @@ export default function Home({ onSelect }: { onSelect: (destination: Destination
           <span className="home-choice-body">
             <span className="home-choice-title">Aim Trainer</span>
             <span className="home-choice-desc">
-              Calibrate your gaze, then aim with your eyes and blink to shoot.
+              Aim with your eyes and blink to shoot. Good practice before using the board.
             </span>
           </span>
         </button>
@@ -38,7 +38,10 @@ export default function Home({ onSelect }: { onSelect: (destination: Destination
 
       <footer className="home-footer">
         <p>GazeBridge is a prototype. It does not replace a hospital's nurse-call or emergency system.</p>
-        <nav className="home-links" aria-label="Legal">
+        <nav className="home-links" aria-label="More">
+          <button type="button" onClick={() => onSelect('calibrate')}>
+            Calibrate again
+          </button>
           <button type="button" onClick={() => onSelect('privacy')}>
             Privacy
           </button>

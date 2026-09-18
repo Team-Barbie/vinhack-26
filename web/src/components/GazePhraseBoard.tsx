@@ -1,13 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import type { EyeTracker } from '../hooks/useEyeTracker'
-import type { CalibrationModel } from '../lib/eyeTracking'
-import { Calibration, FaceChip } from './AimGame'
 import './GazePhraseBoard.css'
 
 type GazeZone = 'left' | 'right' | 'back'
 type RemoteDirection = GazeZone | 'neutral'
-type GazePhase = 'setup' | 'calibrating' | 'review' | 'selecting'
-type InputMode = 'gaze' | 'buttons'
 
 const DWELL_MS = 1100
 
@@ -74,17 +70,13 @@ function remoteDirectionFor(screen: { x: number; y: number } | null): RemoteDire
 }
 
 export default function GazePhraseBoard({ eye }: { eye: EyeTracker }) {
-  const { videoRef, status, error, faceFound, calibrated, snapshotRef, setCalibration, onBlink } = eye
-  const [phase, setPhase] = useState<GazePhase>(eye.calibrated ? 'selecting' : 'setup')
-  const [inputMode, setInputMode] = useState<InputMode>('gaze')
+  const { status, faceFound, calibrated, snapshotRef, onBlink } = eye
   const [choices, setChoices] = useState<readonly string[]>(PHRASES)
   const [history, setHistory] = useState<readonly string[][]>([])
   const [activeZone, setActiveZone] = useState<GazeZone | null>(null)
   const [progress, setProgress] = useState(0)
   const [lastSpoken, setLastSpoken] = useState('')
-  const [calibrationError, setCalibrationError] = useState(0)
   const [awaitingNeutral, setAwaitingNeutral] = useState(false)
-  const [remoteDirection, setRemoteDirection] = useState<RemoteDirection | null>(null)
   const dwellRef = useRef<{ zone: GazeZone | null; startedAt: number }>({ zone: null, startedAt: 0 })
   const lockedRef = useRef(false)
   const needsNeutralRef = useRef(false)
@@ -125,20 +117,6 @@ export default function GazePhraseBoard({ eye }: { eye: EyeTracker }) {
     [choices, leftChoices, reset, rightChoices],
   )
 
-  const finishCalibration = useCallback(
-    (model: CalibrationModel | null) => {
-      if (!model) {
-        setPhase('setup')
-        return
-      }
-      setCalibration(model)
-      setCalibrationError(model.error)
-      setInputMode('gaze')
-      setPhase('review')
-    },
-    [setCalibration],
-  )
-
   const commitGazeZone = useCallback(
     (zone: GazeZone) => {
       if (lockedRef.current) return
@@ -155,19 +133,7 @@ export default function GazePhraseBoard({ eye }: { eye: EyeTracker }) {
   )
 
   useEffect(() => {
-    if (phase !== 'review') return
-    let raf = 0
-    const updatePreview = () => {
-      const frame = snapshotRef.current
-      setRemoteDirection(frame.faceFound ? remoteDirectionFor(frame.screen) : null)
-      raf = requestAnimationFrame(updatePreview)
-    }
-    raf = requestAnimationFrame(updatePreview)
-    return () => cancelAnimationFrame(raf)
-  }, [phase, snapshotRef])
-
-  useEffect(() => {
-    if (phase !== 'selecting' || inputMode !== 'gaze' || !calibrated) return
+    if (!calibrated) return
 
     const timer = window.setInterval(() => {
       const frame = snapshotRef.current
@@ -219,116 +185,31 @@ export default function GazePhraseBoard({ eye }: { eye: EyeTracker }) {
     }, 50)
 
     return () => window.clearInterval(timer)
-  }, [calibrated, commitGazeZone, inputMode, phase, snapshotRef])
+  }, [calibrated, commitGazeZone, snapshotRef])
 
   useEffect(() => {
-    if (phase !== 'selecting' || inputMode !== 'gaze' || !calibrated) return
+    if (!calibrated) return
     return onBlink(() => {
       const zone = dwellRef.current.zone
       if (zone) commitGazeZone(zone)
     })
-  }, [calibrated, commitGazeZone, inputMode, onBlink, phase])
-
-  if (phase === 'calibrating') {
-    return (
-      <section className="gaze-phrase-board" aria-label="Gaze calibration">
-        <video ref={videoRef} className="gaze-camera is-calibrating" muted playsInline aria-hidden="true" />
-        <Calibration eye={eye} onComplete={finishCalibration} onCancel={() => setPhase('setup')} />
-      </section>
-    )
-  }
-
-  if (phase === 'setup') {
-    const ready = status === 'ready' && faceFound
-    return (
-      <section className="gaze-phrase-board gaze-phrase-setup" aria-label="Set up gaze phrases">
-        <div className="gaze-setup-card">
-          <div className="gaze-setup-copy">
-            <span className="gaze-setup-eyebrow">Gaze Phrases</span>
-            <h2>Calibrate before you communicate.</h2>
-            <p>
-              Sit 50–80 cm from the screen, keep your head still, and follow each dot with your eyes.
-              Calibration takes about 15 seconds.
-            </p>
-            <FaceChip eye={eye} />
-            {status === 'error' && <p className="gaze-setup-error">{error}</p>}
-            <div className="gaze-setup-actions">
-              <button type="button" className="gaze-setup-primary" disabled={!ready} onClick={() => setPhase('calibrating')}>
-                {calibrated ? 'Recalibrate now' : 'Start calibration'}
-              </button>
-              {calibrated && (
-                <button type="button" className="gaze-setup-secondary" disabled={!ready} onClick={() => setPhase('selecting')}>
-                  Use saved calibration
-                </button>
-              )}
-              <button
-                type="button"
-                className="gaze-setup-secondary"
-                onClick={() => {
-                  setInputMode('buttons')
-                  setPhase('selecting')
-                }}
-              >
-                Test with buttons
-              </button>
-            </div>
-          </div>
-        </div>
-      </section>
-    )
-  }
-
-  if (phase === 'review') {
-    const quality = calibrationError < 0.05 ? 'Good' : calibrationError < 0.1 ? 'Fair' : 'Needs another try'
-    return (
-      <section className="gaze-phrase-board gaze-calibration-review" aria-label="Check gaze calibration">
-        <video ref={videoRef} className="gaze-camera" muted playsInline aria-hidden="true" />
-        <div className="gaze-review-card">
-          <span className="gaze-setup-eyebrow">Calibration check</span>
-          <h2>Test the gaze remote.</h2>
-          <p>
-            Look left, right, up, then back to the center. Each direction should light up without moving a cursor.
-          </p>
-          <div className="gaze-remote-pad" aria-live="polite">
-            <span className={`gaze-remote-key is-up ${remoteDirection === 'back' ? 'is-active' : ''}`}>↑ Back</span>
-            <span className={`gaze-remote-key is-left ${remoteDirection === 'left' ? 'is-active' : ''}`}>← Left</span>
-            <span className={`gaze-remote-key is-center ${remoteDirection === 'neutral' ? 'is-active' : ''}`}>Center</span>
-            <span className={`gaze-remote-key is-right ${remoteDirection === 'right' ? 'is-active' : ''}`}>Right →</span>
-          </div>
-          <div className="gaze-review-quality">
-            <span>Tracking quality</span>
-            <strong>{quality}</strong>
-          </div>
-          <div className="gaze-setup-actions">
-            <button type="button" className="gaze-setup-primary" onClick={() => setPhase('selecting')}>
-              Use this calibration
-            </button>
-            <button type="button" className="gaze-setup-secondary" onClick={() => setPhase('calibrating')}>
-              Recalibrate
-            </button>
-          </div>
-        </div>
-      </section>
-    )
-  }
+  }, [calibrated, commitGazeZone, onBlink])
 
   const trackerLabel =
-    inputMode === 'buttons'
-      ? 'Button testing mode'
-      : status === 'error'
-      ? 'Camera unavailable · buttons still work'
+    status === 'error'
+      ? 'Camera unavailable. Tap a side instead.'
       : !calibrated
-        ? 'Calibrate in Aim Trainer to enable gaze'
+        ? 'Not calibrated. Tap a side instead.'
         : awaitingNeutral
-          ? 'Return your gaze to the center'
+          ? 'Look back at the middle'
         : activeZone === 'left'
-          ? 'Left highlighted · blink to select'
+          ? 'Left side. Blink to pick it.'
           : activeZone === 'right'
-            ? 'Right highlighted · blink to select'
+            ? 'Right side. Blink to pick it.'
             : activeZone === 'back'
-              ? 'Back highlighted · blink to select'
+              ? 'Going back. Blink to confirm.'
         : faceFound
-          ? 'Look to highlight · blink or dwell to select'
+          ? 'Look at a side, then blink or hold still'
           : 'Looking for your face'
 
   return (
@@ -339,12 +220,11 @@ export default function GazePhraseBoard({ eye }: { eye: EyeTracker }) {
         </button>
         <div className={`gaze-tracker-status ${calibrated && faceFound ? 'ready' : ''}`}>{trackerLabel}</div>
         <div className="gaze-toolbar-actions">
-          <button type="button" className="gaze-reset" onClick={() => setPhase('setup')}>Recalibrate</button>
           <button type="button" className="gaze-reset" onClick={reset}>Reset phrases</button>
         </div>
       </div>
 
-      {lastSpoken && <div className="gaze-spoken" role="status">Spoke: “{lastSpoken}”</div>}
+      {lastSpoken && <div className="gaze-spoken" role="status">Said: "{lastSpoken}"</div>}
 
       <div className="gaze-choice-layout">
         <button

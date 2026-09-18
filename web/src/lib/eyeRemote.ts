@@ -33,6 +33,30 @@ export function classifyDirection(p: RemoteProfile, f: number[]): Direction {
   return directionSignal(p, f).direction
 }
 
+export const REMOTE_CENTER_TARGET: [number, number] = [0.5, 0.5]
+
+// The shared calibration already has the patient look at the middle, the side
+// columns and the top and bottom of the screen, so the remote's five direction
+// templates come from those dots instead of a second setup.
+export function profileFromCalibration(samples: { features: number[]; target: [number, number] }[]): RemoteProfile | null {
+  const near = (a: number, b: number) => Math.abs(a - b) < 0.03
+  const pick: Record<Direction, (x: number, y: number) => boolean> = {
+    center: (x, y) => near(x, 0.5) && near(y, 0.5),
+    left: (x, y) => x < 0.2 && y > 0.2 && y < 0.8,
+    right: (x, y) => x > 0.8 && y > 0.2 && y < 0.8,
+    up: (x, y) => near(x, 0.5) && y < 0.2,
+    down: (x, y) => near(x, 0.5) && y > 0.8,
+  }
+  const profile = {} as RemoteProfile
+  for (const d of DIRECTIONS) {
+    const group = samples.filter((s) => pick[d](s.target[0], s.target[1])).map((s) => s.features.slice(0, 4))
+    if (group.length === 0) return null
+    profile[d] = [0, 1, 2, 3].map((i) => group.reduce((sum, f) => sum + f[i], 0) / group.length)
+  }
+  if (!profileValid(profile) || DIRECTIONS.some((d) => classifyDirection(profile, profile[d]) !== d)) return null
+  return profile
+}
+
 export class RemoteRepeater {
   private direction: Direction = 'center'
   private since = 0
