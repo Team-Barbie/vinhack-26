@@ -54,21 +54,21 @@
 
 .gaze-tracker-status {
   min-height: auto;
-  color: var(--tone-wait);
+  color: var(--text-dim);
   font-size: 0.82rem;
 }
 
 .gaze-tracker-status.ready {
-  border-color: rgba(107, 217, 143, 0.4);
-  color: var(--tone-up);
+  border-color: var(--line-strong);
+  color: var(--text);
 }
 
 .gaze-spoken {
   padding: 12px 18px;
-  border: 1px solid rgba(107, 217, 143, 0.35);
+  border: 1px solid var(--line-strong);
   border-radius: var(--r-md);
-  background: rgba(107, 217, 143, 0.1);
-  color: var(--tone-up);
+  background: var(--surface-2);
+  color: var(--text);
   font-weight: 700;
   text-align: center;
 }

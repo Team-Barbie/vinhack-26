@@ -51,7 +51,7 @@
 }
 
 .panel-error {
-  color: var(--danger);
+  color: var(--text);
   font-weight: 700;
 }
 
@@ -90,11 +90,16 @@
 }
 
 .status-chip.is-good {
-  color: var(--signal);
+  color: var(--text);
 }
 
 .status-chip.is-bad {
-  color: var(--danger);
+  color: var(--text-dim);
+}
+
+.status-chip.is-bad .status-chip-dot {
+  background: transparent;
+  box-shadow: inset 0 0 0 1.5px currentColor;
 }
 
 .panel-btn {

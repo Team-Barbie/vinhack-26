@@ -9,53 +9,6 @@
   animation: screen-in var(--slow) var(--ease);
 }
 
-.remote-bar {
-  position: sticky;
-  top: 8px;
-  z-index: 30;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 12px 20px;
-  padding: 14px 20px;
-  border: 1px solid var(--glass-border);
-  border-radius: var(--r-md);
-  background: rgba(10, 10, 10, 0.78);
-  backdrop-filter: blur(var(--glass-blur)) saturate(160%);
-  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(160%);
-  box-shadow: inset 0 1px 0 var(--glass-sheen), var(--shadow-float);
-}
-.remote-bar > div:first-child { display: grid; gap: 4px; flex: 1; min-width: 200px; }
-.remote-bar span, .remote-bar p { color: var(--text-dim); font-size: 0.9rem; }
-.remote-bar p { width: 100%; margin: 0; }
-.remote-bar .home-btn { min-height: 44px; padding: 0 16px; font-size: 0.9rem; }
-.remote-selection { display: grid; gap: 3px; color: var(--text); }
-.remote-selection > span { color: var(--text-dim); font-size: 0.72rem; font-weight: 700; }
-.remote-selection > strong { font-size: 1.15rem; }
-.remote-selection > small { color: var(--text-dim); font-size: 0.78rem; }
-.remote-pace { display: grid; gap: 5px; color: var(--text-dim); font-size: 0.75rem; }
-.remote-pace select {
-  padding: 9px 12px;
-  border: 1px solid var(--glass-border);
-  border-radius: var(--r-xs);
-  background: var(--glass-tint);
-  color: var(--text);
-  font: inherit;
-  font-size: 0.9rem;
-}
-.remote-howto { display: flex; flex-wrap: wrap; gap: 10px 20px; padding-top: 10px; border-top: 1px solid var(--line); }
-.remote-howto > span { display: inline-flex; align-items: center; gap: 7px; }
-.remote-howto b {
-  display: inline-grid;
-  width: 22px;
-  height: 22px;
-  place-items: center;
-  border-radius: 50%;
-  background: var(--glass-tint-strong);
-  color: var(--text);
-  font-size: 0.72rem;
-}
-
 /* While the eye remote is on, the board sits in a scrolling box with clear margins
    so the four edge arrows never cover a card. */
 .has-eye-remote {
@@ -75,7 +28,6 @@
 .has-eye-remote .board-nav { flex-wrap: wrap; }
 .has-eye-remote .nav-tabs { flex-wrap: wrap; max-width: 100%; }
 .has-eye-remote .nav-tab { min-width: auto; min-height: 48px; padding: 12px 18px; }
-.has-eye-remote .remote-bar { position: static; }
 .has-eye-remote button.remote-focused { scroll-margin-block: 12px; }
 .has-eye-remote .need-tile { position: relative; }
 .has-eye-remote .need-tile.remote-focused::before {
@@ -258,11 +210,11 @@
   min-height: 72px;
   padding: 14px 38px;
   border-radius: var(--r-pill);
-  background: var(--danger-tint);
+  background: var(--emergency-tint);
   backdrop-filter: blur(calc(var(--glass-blur) / 2)) saturate(140%);
   -webkit-backdrop-filter: blur(calc(var(--glass-blur) / 2)) saturate(140%);
   border: 1px solid rgba(235, 72, 77, 0.35);
-  color: var(--danger);
+  color: var(--emergency);
   font-size: 1.3rem;
   font-weight: 700;
   transition: background var(--fast) var(--ease), transform var(--fast) var(--ease),
@@ -278,8 +230,8 @@
 }
 
 .emergency-btn.active {
-  background: var(--danger);
-  border-color: var(--danger);
+  background: var(--emergency);
+  border-color: var(--emergency);
   color: #ffffff;
   box-shadow: 0 0 0 3px rgba(235, 72, 77, 0.25), 0 12px 32px -12px rgba(235, 72, 77, 0.6);
 }
@@ -288,10 +240,11 @@
 
 .quick-answer {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 18px 22px;
+  justify-content: center;
+  gap: 12px;
+  padding: 16px 22px 20px;
   border: 1px solid var(--line);
   border-radius: var(--r-lg);
   background: var(--surface);
@@ -307,7 +260,6 @@
 .quick-answer-buttons {
   display: flex;
   gap: 16px;
-  flex: 1;
 }
 
 .speech-status {
@@ -315,7 +267,7 @@
   color: var(--muted);
   font-size: 0.8rem;
   font-weight: 700;
-  text-align: right;
+  text-align: center;
 }
 
 .answer-btn {
@@ -323,8 +275,9 @@
   align-items: center;
   justify-content: center;
   gap: 12px;
-  flex: 1;
-  max-width: 260px;
+  flex: 0 1 auto;
+  width: 260px;
+  min-width: 120px;
   min-height: 92px;
   padding: 0 34px;
   border-radius: var(--r-lg);
@@ -338,36 +291,23 @@
   transform: scale(0.96);
 }
 
-.answer-yes {
-  background: rgba(107, 217, 143, 0.14);
-  border: 1px solid rgba(107, 217, 143, 0.4);
-  color: var(--tone-up);
-}
-
-.answer-yes:hover {
-  background: rgba(107, 217, 143, 0.22);
-}
-
-.answer-yes.flash {
-  background: var(--tone-up);
-  color: var(--accent-ink);
-  box-shadow: 0 0 0 4px rgba(107, 217, 143, 0.25);
-}
-
+.answer-yes,
 .answer-no {
-  background: var(--danger-tint);
-  border: 1px solid rgba(235, 72, 77, 0.35);
-  color: var(--danger);
+  border: 1px solid var(--glass-border);
+  background: var(--glass-tint);
+  color: var(--text);
 }
 
+.answer-yes:hover,
 .answer-no:hover {
-  background: rgba(235, 72, 77, 0.2);
+  background: var(--glass-tint-strong);
 }
 
+.answer-yes.flash,
 .answer-no.flash {
-  background: var(--danger);
-  color: #ffffff;
-  box-shadow: 0 0 0 4px rgba(235, 72, 77, 0.25);
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--accent-ink);
 }
 
 /* ---------- Screen title ---------- */
@@ -457,12 +397,7 @@
 }
 
 .screen-urgent .need-tile {
-  border-color: rgba(235, 72, 77, 0.22);
-}
-
-.screen-urgent .need-tile:hover {
-  border-color: var(--danger);
-  background: var(--danger-tint);
+  border-color: var(--line-strong);
 }
 
 .screen-quick .need-tile {
@@ -475,8 +410,8 @@
   z-index: 20;
   padding: 14px 18px;
   border-radius: var(--r-md);
-  background: #eb484d;
-  color: #fff;
+  background: var(--accent);
+  color: var(--accent-ink);
   font-size: 1.2rem;
   font-weight: 700;
   text-align: center;

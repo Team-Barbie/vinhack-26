@@ -43,7 +43,7 @@ Choose **Patient Board** on the home screen to access:
 - **Talk**: one-tap phrases such as "Stop" or "Say that again", plus yes/no answers.
 - **Phrases**, which narrows a phrase list using left/right gaze selections. Look toward the group containing your phrase, and blink or dwell for about 1.1 seconds to select. Return your gaze to the center between selections. Look toward the upper screen area and blink or dwell to go back. Once a single phrase is selected, it is spoken and the list resets. Tapping a side works too.
 
-The **eye remote** moves a highlight between cards using the same calibration: look left, right, up, or down to move and close your eyes for about half a second to pick. Four arrows sit at the screen edges (Up, Down, Left, Right): the one your eyes are on turns white and fills as you hold the look, and tapping one moves the highlight too. The **Movement pace** menu switches between Steady and Quicker. Every card also works by tapping.
+The **eye remote** moves a highlight between cards using the same calibration: look left, right, up, or down to move and close your eyes for about half a second to pick. Four arrows sit at the screen edges (Up, Down, Left, Right): the one your eyes are on turns white and fills as you hold the look, and tapping one moves the highlight too. Every card also works by tapping.
 
 Request cards use black-and-white Apple-style emoji, loaded from the `emoji-datasource-apple` package on jsDelivr so they look the same on every operating system. If an image can't load, the system emoji is shown instead.
 

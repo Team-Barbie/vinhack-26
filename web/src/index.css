@@ -25,14 +25,9 @@
   --accent-glow: rgba(243, 243, 241, 0.16);
   --accent-tint: rgba(243, 243, 241, 0.08);
 
-  /* Semantic cue tones - kept as real color, since these carry meaning */
-  --tone-wait: #b8b8b4;
-  --tone-down: #f0a85c;
-  --tone-up: #6bd98f;
-  --tone-hold: #5fb8e0;
-  --danger: #eb484d;
-  --danger-tint: rgba(235, 72, 77, 0.12);
-  --signal: #3ddc71;
+  /* The only colour in the app: the Emergency button */
+  --emergency: #eb484d;
+  --emergency-tint: rgba(235, 72, 77, 0.12);
 
   /* Glass - frosted surfaces for buttons and floating chrome */
   --glass-blur: 18px;
