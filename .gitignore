@@ -203,6 +203,10 @@ cython_debug/
 # Temporary file for partial code execution
 tempCodeRunnerFile.py
 
+# MediaPipe model bundle (downloaded on first run)
+models/*.task
+!models/.gitkeep
+
 # Ruff stuff:
 .ruff_cache/
 
