@@ -29,44 +29,137 @@
 .remote-bar span, .remote-bar p { color: var(--text-dim); font-size: 0.9rem; }
 .remote-bar p { width: 100%; margin: 0; }
 .remote-bar .home-btn { min-height: 44px; padding: 0 16px; font-size: 0.9rem; }
-.remote-selection { color: var(--text); }
-.remote-guide { display: flex; align-items: center; gap: 14px; }
-.remote-guide small { color: var(--text-dim); font-variant-numeric: tabular-nums; }
-/* Direction guide: lights up the way the eyes are looking; tapping moves the highlight. */
-.remote-pad {
-  display: grid;
-  grid-template-columns: repeat(3, 76px);
-  grid-template-rows: repeat(3, 38px);
-  grid-template-areas: '. up .' 'left center right' '. down .';
-  gap: 4px;
-}
-.remote-pad-btn {
+.remote-selection { display: grid; gap: 3px; color: var(--text); }
+.remote-selection > span { color: var(--text-dim); font-size: 0.72rem; font-weight: 700; }
+.remote-selection > strong { font-size: 1.15rem; }
+.remote-selection > small { color: var(--text-dim); font-size: 0.78rem; }
+.remote-pace { display: grid; gap: 5px; color: var(--text-dim); font-size: 0.75rem; }
+.remote-pace select {
+  padding: 9px 12px;
   border: 1px solid var(--glass-border);
   border-radius: var(--r-xs);
   background: var(--glass-tint);
   color: var(--text);
-  font-size: 0.85rem;
-  font-weight: 700;
-  transition: background var(--fast) var(--ease), color var(--fast) var(--ease), border-color var(--fast) var(--ease);
+  font: inherit;
+  font-size: 0.9rem;
 }
-.remote-pad-btn:hover { background: var(--glass-tint-strong); }
-.remote-pad-btn.is-up { grid-area: up; }
-.remote-pad-btn.is-left { grid-area: left; }
-.remote-pad-btn.is-right { grid-area: right; }
-.remote-pad-btn.is-down { grid-area: down; }
-.remote-bar .remote-pad-center {
-  grid-area: center;
-  display: grid;
+.remote-howto { display: flex; flex-wrap: wrap; gap: 10px 20px; padding-top: 10px; border-top: 1px solid var(--line); }
+.remote-howto > span { display: inline-flex; align-items: center; gap: 7px; }
+.remote-howto b {
+  display: inline-grid;
+  width: 22px;
+  height: 22px;
   place-items: center;
-  border-radius: var(--r-xs);
-  color: var(--muted);
-  font-size: 0.8rem;
+  border-radius: 50%;
+  background: var(--glass-tint-strong);
+  color: var(--text);
+  font-size: 0.72rem;
 }
-.remote-pad-btn.is-active,
-.remote-bar .remote-pad-center.is-active {
-  border-color: var(--accent);
-  background: var(--accent);
-  color: var(--accent-ink);
+
+/* While the eye remote is on, the board sits in a scrolling box with clear margins
+   so the four edge arrows never cover a card. */
+.has-eye-remote {
+  position: fixed;
+  inset: max(100px, 16vh) 15% max(110px, 18vh);
+  width: auto;
+  min-height: 0;
+  padding: 8px 12px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  animation: none;
+  scrollbar-width: thin;
+  scrollbar-color: var(--line-strong) transparent;
+}
+.has-eye-remote > * { flex-shrink: 0; }
+.has-eye-remote .tile-grid { overflow: visible; flex: none; margin: 0; padding: 12px; }
+.has-eye-remote .board-nav { flex-wrap: wrap; }
+.has-eye-remote .nav-tabs { flex-wrap: wrap; max-width: 100%; }
+.has-eye-remote .nav-tab { min-width: auto; min-height: 48px; padding: 12px 18px; }
+.has-eye-remote .remote-bar { position: static; }
+.has-eye-remote button.remote-focused { scroll-margin-block: 12px; }
+.has-eye-remote .need-tile { position: relative; }
+.has-eye-remote .need-tile.remote-focused::before {
+  content: 'Highlighted';
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  padding: 3px 8px;
+  border: 1px solid var(--glass-border);
+  border-radius: var(--r-xs);
+  background: var(--glass-tint-strong);
+  color: var(--text);
+  font-size: 0.68rem;
+  font-weight: 700;
+}
+.has-eye-remote[data-eye-ready='true'] .need-tile.remote-focused::after {
+  content: 'Hold a blink to choose';
+  position: absolute;
+  right: 0;
+  bottom: 8px;
+  left: 0;
+  color: var(--text-dim);
+  font-size: 0.7rem;
+  text-align: center;
+}
+
+/* Four edge arrows. The one your eyes are on turns white and fills along the bottom;
+   tapping one moves the highlight the same way. */
+.remote-edges { position: fixed; inset: 0; z-index: 45; pointer-events: none; }
+.remote-edge {
+  position: absolute;
+  display: flex;
+  width: clamp(84px, 9vw, 132px);
+  min-height: 104px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  padding: 12px 8px 18px;
+  overflow: hidden;
+  border: 1px solid var(--glass-border);
+  border-radius: var(--r-lg);
+  background: rgba(10, 10, 10, 0.78);
+  backdrop-filter: blur(var(--glass-blur)) saturate(160%);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(160%);
+  box-shadow: inset 0 1px 0 var(--glass-sheen), var(--shadow-float);
+  color: var(--text);
+  pointer-events: auto;
+  transform: translate(-50%, -50%);
+  transition: background var(--fast) var(--ease), border-color var(--fast) var(--ease), color var(--fast) var(--ease);
+}
+.remote-edge:hover:not(:disabled) { background: var(--glass-tint-strong); }
+.remote-edge-left { left: 8%; top: 50%; }
+.remote-edge-right { left: 92%; top: 50%; }
+.remote-edge-up { left: 50%; top: 8%; min-height: 80px; width: 144px; padding-block: 6px 12px; }
+.remote-edge-down { left: 50%; top: 90%; min-height: 80px; width: 144px; padding-block: 6px 12px; }
+.remote-edge-arrow { font-size: 34px; font-weight: 700; line-height: 1; }
+.remote-edge strong { font-size: 0.95rem; text-transform: capitalize; }
+.remote-edge small { color: var(--text-dim); font-size: 0.74rem; }
+.remote-edge.is-looking { border-color: var(--accent); background: var(--accent); color: var(--accent-ink); }
+.remote-edge.is-looking small { color: var(--accent-ink); }
+.remote-edge:focus-visible { outline: 3px solid var(--accent); outline-offset: 4px; }
+.remote-edge:disabled { opacity: 0.45; }
+.remote-edge-progress { position: absolute; right: 0; bottom: 0; left: 0; height: 5px; background: var(--glass-tint); }
+.remote-edge-progress::after { content: ''; display: block; width: var(--move-progress, 0%); height: 100%; background: var(--text-dim); }
+.remote-edge.is-looking .remote-edge-progress::after { background: var(--accent-ink); }
+@media (max-width: 900px) {
+  .has-eye-remote { padding-inline: 8px; }
+  .has-eye-remote .tile-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+  .has-eye-remote .need-tile { min-height: 150px; padding: 18px 10px; }
+  .has-eye-remote .need-icon { font-size: 46px; }
+  .has-eye-remote .need-label { font-size: 1rem; }
+  .has-eye-remote .quick-answer { flex-wrap: wrap; padding: 14px; }
+  .has-eye-remote .answer-btn { min-height: 68px; padding: 0 12px; }
+  .remote-edge { width: 66px; min-height: 86px; border-radius: var(--r-md); }
+  .remote-edge-up, .remote-edge-down { width: 114px; min-height: 76px; }
+  .remote-edge small { font-size: 0.65rem; white-space: nowrap; }
+}
+@media (max-width: 480px) {
+  .has-eye-remote { right: 18%; left: 18%; }
+  .remote-edge-left { left: 9%; }
+  .remote-edge-right { left: 91%; }
+  .remote-edge { width: 56px; }
+  .remote-edge-up, .remote-edge-down { width: 108px; }
 }
 .needs-board button.remote-focused {
   outline: 3px solid var(--accent);

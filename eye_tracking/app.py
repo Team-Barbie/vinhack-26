@@ -1,4 +1,4 @@
-"""Webcam loop for MediaPipe iris and eye tracking."""
+Webcam loop for MediaPipe iris and eye tracking."""
 
 from __future__ import annotations
 

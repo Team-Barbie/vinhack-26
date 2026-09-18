@@ -157,7 +157,7 @@ export default function NeedsBoard({ onExit, onRecalibrate }: { onExit: () => vo
   const { title, tiles } = SCREENS[screen]
 
   return (
-    <div ref={boardRef} className={`needs-board screen-${screen}`}>
+    <div ref={boardRef} className={`needs-board screen-${screen} ${screen !== 'gaze' ? 'has-eye-remote' : ''}`}>
       {pager && <div className="pager-banner" role="status">{pager}</div>}
       <audio
         ref={audioRef}

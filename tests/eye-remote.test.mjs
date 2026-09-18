@@ -18,7 +18,7 @@ test('neutral noise, ambiguous diagonals and distant features do not move the re
   assert.equal(profileValid({ ...p, down: p.center }), false)
 })
 test('short glances are ignored; sustained directions repeat at controlled intervals', () => {
-  const remote = new RemoteRepeater()
+  const remote = new RemoteRepeater(220, 700)
   assert.equal(remote.update('left', 0), null)
   assert.equal(remote.update('left', 190), null)
   assert.equal(remote.update('center', 200), null)
@@ -40,7 +40,7 @@ test('comfortable partial looks engage without reaching the calibration endpoint
 })
 
 test('one uncertain camera sample does not permanently prevent movement', () => {
-  const remote = new RemoteRepeater()
+  const remote = new RemoteRepeater(220, 700)
   remote.update('right', 100)
   remote.update('right', 200)
   assert.equal(remote.update('center', 230), null)
@@ -50,6 +50,21 @@ test('one uncertain camera sample does not permanently prevent movement', () => 
   assert.equal(remote.update('center', 500), null)
   assert.equal(remote.update('right', 550), null)
   assert.equal(remote.update('right', 770), 'right')
+})
+
+test('steady pace gives time to settle and never accelerates while held', () => {
+  const remote = new RemoteRepeater()
+  assert.equal(remote.update('right', 100), null)
+  assert.equal(remote.update('right', 350), null)
+  assert.ok(remote.progress(350) > 0.5 && remote.progress(350) < 0.7)
+  assert.equal(remote.update('right', 520), 'right')
+  assert.equal(remote.progress(520), 0)
+  assert.equal(remote.update('right', 1200), null)
+  assert.equal(remote.update('right', 1470), 'right')
+  assert.equal(remote.update('right', 2000), null)
+  assert.equal(remote.update('right', 2420), 'right')
+  assert.equal(remote.update('center', 2450), null)
+  assert.equal(remote.progress(2450), 0)
 })
 test('navigation follows rows and columns and does not wrap at an edge', () => {
   const items = Array.from({ length: 6 }, (_, i) => ({ id: String(i), x: (i % 3) * 300, y: Math.floor(i / 3) * 200, width: 280, height: 180 }))
