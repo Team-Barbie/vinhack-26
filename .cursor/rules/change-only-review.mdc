@@ -1,0 +1,12 @@
+---
+description: Require a tightly scoped review after code changes
+alwaysApply: true
+---
+
+# Change-only review
+
+- After modifying code, invoke the `change-only-reviewer` subagent before declaring the task complete.
+- Give it only the current task's changed files and intended behavior.
+- The review must use the current diff and must not review the whole codebase.
+- Fix valid findings, then rerun only the relevant checks.
+- Do not claim UI behavior from source inspection alone; verify the affected live UI when available.

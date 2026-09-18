@@ -255,7 +255,7 @@ export default function NeedsBoard({ onExit }: { onExit: () => void }) {
   }
 
   return (
-    <div ref={boardRef} className={`needs-board screen-${screen} ${screen !== 'gaze' ? 'has-eye-remote' : ''}`}>
+    <div ref={boardRef} className={`needs-board screen-${screen} has-eye-remote`}>
       <video ref={eye.videoRef} className="board-cam" muted playsInline />
       {pager && <div className="pager-banner" role="status">{pager}</div>}
       <audio
@@ -269,8 +269,8 @@ export default function NeedsBoard({ onExit }: { onExit: () => void }) {
         <button type="button" className="home-btn" onClick={onExit}>
           ← Home
         </button>
-        <button type="button" className="home-btn" onClick={() => screen === 'gaze' ? setBoardPhase('calibrating') : setRemoteVersion((v) => v + 1)}>
-          {screen === 'gaze' ? 'Recalibrate' : 'Reset remote'}
+        <button type="button" className="home-btn remote-reset-btn" onClick={() => setRemoteVersion((v) => v + 1)}>
+          Reset remote
         </button>
         <div className="nav-tabs">
           <button
@@ -318,7 +318,7 @@ export default function NeedsBoard({ onExit }: { onExit: () => void }) {
         </button>
       </div>
 
-      {screen !== 'gaze' && <EyeRemote key={remoteVersion} eye={eye} root={boardRef} screenKey={screen} />}
+      <EyeRemote key={remoteVersion} eye={eye} root={boardRef} screenKey={screen} />
       {screen !== 'gaze' && (
         <div className="quick-answer">
           <span className="quick-answer-label">Answering a question?</span>
@@ -342,7 +342,7 @@ export default function NeedsBoard({ onExit }: { onExit: () => void }) {
       )}
 
       {screen === 'gaze' ? (
-        <GazePhraseBoard eye={eye} />
+        <GazePhraseBoard />
       ) : screen === 'sentence' ? (
         <div className="phrase-bar">
           <div className="phrase-text" aria-live="polite">
