@@ -66,7 +66,7 @@ function splitPhrases(phrases: readonly string[]) {
 
 export default function GazePhraseBoard() {
   const eye = useEyeTracker()
-  const { videoRef, status, error, faceFound, calibrated, snapshotRef, setCalibration } = eye
+  const { videoRef, status, error, faceFound, calibrated, snapshotRef, setCalibration, onBlink } = eye
   const [phase, setPhase] = useState<GazePhase>('setup')
   const [inputMode, setInputMode] = useState<InputMode>('gaze')
   const [choices, setChoices] = useState<readonly string[]>(PHRASES)
@@ -74,8 +74,10 @@ export default function GazePhraseBoard() {
   const [activeZone, setActiveZone] = useState<GazeZone | null>(null)
   const [progress, setProgress] = useState(0)
   const [lastSpoken, setLastSpoken] = useState('')
+  const [awaitingNeutral, setAwaitingNeutral] = useState(false)
   const dwellRef = useRef<{ zone: GazeZone | null; startedAt: number }>({ zone: null, startedAt: 0 })
   const lockedRef = useRef(false)
+  const needsNeutralRef = useRef(false)
   const [leftChoices, rightChoices] = useMemo(() => splitPhrases(choices), [choices])
 
   const reset = useCallback(() => {
@@ -125,6 +127,21 @@ export default function GazePhraseBoard() {
     [setCalibration],
   )
 
+  const commitGazeZone = useCallback(
+    (zone: GazeZone) => {
+      if (lockedRef.current) return
+      lockedRef.current = true
+      needsNeutralRef.current = true
+      setAwaitingNeutral(true)
+      if (zone === 'back') goBack()
+      else chooseSide(zone)
+      dwellRef.current = { zone: null, startedAt: performance.now() }
+      setActiveZone(null)
+      setProgress(0)
+    },
+    [chooseSide, goBack],
+  )
+
   useEffect(() => {
     if (phase !== 'selecting' || inputMode !== 'gaze' || !calibrated) return
 
@@ -139,6 +156,17 @@ export default function GazePhraseBoard() {
       }
 
       const now = performance.now()
+      if (needsNeutralRef.current) {
+        if (zone === null) {
+          needsNeutralRef.current = false
+          lockedRef.current = false
+          setAwaitingNeutral(false)
+        }
+        setActiveZone(null)
+        setProgress(0)
+        return
+      }
+
       if (zone !== dwellRef.current.zone) {
         dwellRef.current = { zone, startedAt: now }
         setActiveZone(zone)
@@ -151,17 +179,19 @@ export default function GazePhraseBoard() {
       const nextProgress = Math.min(1, (now - dwellRef.current.startedAt) / DWELL_MS)
       setProgress(nextProgress)
 
-      if (nextProgress < 1) return
-      lockedRef.current = true
-      if (zone === 'back') goBack()
-      else chooseSide(zone)
-      dwellRef.current = { zone: null, startedAt: now }
-      setActiveZone(null)
-      setProgress(0)
+      if (nextProgress >= 1) commitGazeZone(zone)
     }, 50)
 
     return () => window.clearInterval(timer)
-  }, [calibrated, chooseSide, goBack, inputMode, phase, snapshotRef])
+  }, [calibrated, commitGazeZone, inputMode, phase, snapshotRef])
+
+  useEffect(() => {
+    if (phase !== 'selecting' || inputMode !== 'gaze' || !calibrated) return
+    return onBlink(() => {
+      const zone = dwellRef.current.zone
+      if (zone) commitGazeZone(zone)
+    })
+  }, [calibrated, commitGazeZone, inputMode, onBlink, phase])
 
   if (phase === 'calibrating') {
     return (
@@ -220,8 +250,10 @@ export default function GazePhraseBoard() {
       ? 'Camera unavailable · buttons still work'
       : !calibrated
         ? 'Calibrate in Aim Trainer to enable gaze'
+        : awaitingNeutral
+          ? 'Return your gaze to the center'
         : faceFound
-          ? 'Gaze ready'
+          ? 'Look to highlight · blink or dwell to select'
           : 'Looking for your face'
 
   return (
@@ -268,7 +300,7 @@ export default function GazePhraseBoard() {
       </div>
 
       <p className="gaze-phrase-hint">
-        Choose a side to narrow the list. When one phrase remains, it is spoken aloud.
+        Look at a side, then blink or hold your gaze to select it. Return to the center between choices.
       </p>
     </section>
   )
