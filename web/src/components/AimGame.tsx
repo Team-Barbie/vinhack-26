@@ -85,7 +85,7 @@ function Crosshair({ cursorRef, dimmed }: { cursorRef: MutableRefObject<Point | 
   return <div ref={el} className={`crosshair ${dimmed ? 'is-dimmed' : ''}`} aria-hidden="true" />
 }
 
-function FaceChip({ eye }: { eye: EyeTracker }) {
+export function FaceChip({ eye }: { eye: EyeTracker }) {
   if (eye.status === 'loading') return <span className="aim-chip">Loading eye tracker…</span>
   if (eye.status === 'error') return <span className="aim-chip is-bad">Tracker error</span>
   return (
@@ -147,7 +147,7 @@ function Setup({
   )
 }
 
-function Calibration({
+export function Calibration({
   eye,
   onComplete,
   onCancel,
