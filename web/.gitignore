@@ -25,3 +25,4 @@ dist-ssr
 
 # Root .gitignore (Python template) ignores every lib/ folder; the frontend needs this one.
 !src/lib/
+.vercel

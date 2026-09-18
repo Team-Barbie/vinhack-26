@@ -1,0 +1,12 @@
+.venv
+__pycache__
+*.pyc
+eye_tracking
+models
+main.py
+requirements.txt
+tests
+node_modules
+web/node_modules
+web/dist
+gaze-look-log.json

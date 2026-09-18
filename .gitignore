@@ -24,7 +24,8 @@ gaze-look-log.json
 *.sln
 *.sw?
 
-.venv/
+.vercel
+.venv
 __pycache__/
 *.pyc
 models/*.task
