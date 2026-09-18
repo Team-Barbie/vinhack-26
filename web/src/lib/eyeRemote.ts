@@ -35,10 +35,17 @@ export function classifyDirection(p: RemoteProfile, f: number[]): Direction {
 
 export class RemoteRepeater {
   private direction: Direction = 'center'
-  private since = 0
   private nextAt = 0
   private neutralAt: number | null = null
-  reset(): void { this.direction = 'center'; this.since = 0; this.nextAt = 0; this.neutralAt = null }
+  private waitStartedAt = 0
+  private initialMs: number
+  private repeatMs: number
+  constructor(initialMs = 420, repeatMs = 950) { this.initialMs = initialMs; this.repeatMs = repeatMs }
+  progress(now: number): number {
+    if (this.direction === 'center' || this.neutralAt !== null) return 0
+    return Math.min(1, Math.max(0, (now - this.waitStartedAt) / Math.max(1, this.nextAt - this.waitStartedAt)))
+  }
+  reset(): void { this.direction = 'center'; this.nextAt = 0; this.neutralAt = null }
   update(direction: Direction, now: number): Direction | null {
     if (direction === 'center') {
       this.neutralAt ??= now
@@ -49,11 +56,12 @@ export class RemoteRepeater {
     this.neutralAt = null
     if (direction !== this.direction) {
       this.direction = direction
-      this.since = now
-      this.nextAt = now + 220
+      this.waitStartedAt = now
+      this.nextAt = now + this.initialMs
     }
     if (now < this.nextAt) return null
-    this.nextAt = now + (now - this.since < 800 ? 700 : 480)
+    this.waitStartedAt = now
+    this.nextAt = now + this.repeatMs
     return direction
   }
 }

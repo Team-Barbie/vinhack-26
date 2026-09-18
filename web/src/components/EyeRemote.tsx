@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type RefObject } from 'react'
+import { useEffect, useRef, useState, type RefObject, type CSSProperties } from 'react'
 import type { EyeTracker } from '../hooks/useEyeTracker'
 import { classifyDirection, directionSignal, DIRECTIONS, medianFeatures, nextRemoteItem, profileValid,
   RemoteBlink, RemoteRepeater, type Direction, type RemoteProfile } from '../lib/eyeRemote'
@@ -15,12 +15,21 @@ export default function EyeRemote({ eye, root, screenKey }: {
   const [progress, setProgress] = useState(0)
   const [selectedLabel, setSelectedLabel] = useState('Call Nurse')
   const [detected, setDetected] = useState<Direction>('center')
-  const [strength, setStrength] = useState(0)
+  const [moveProgress, setMoveProgress] = useState(0)
+  const [pace, setPace] = useState<'steady' | 'quick'>('steady')
+  const [feedback, setFeedback] = useState('')
+  const moveRef = useRef<(direction: Direction) => void>(() => undefined)
   const templates = useRef<Partial<RemoteProfile>>({})
   const selected = useRef<HTMLButtonElement | null>(null)
   const idCounter = useRef(0)
   const configuring = step >= 0
   const calibrationDirection = DIRECTIONS[step] ?? 'center'
+
+  useEffect(() => {
+    const board = root.current
+    if (board) board.dataset.eyeReady = String(Boolean(profile) && !paused && !configuring)
+    return () => { if (board) delete board.dataset.eyeReady }
+  }, [configuring, paused, profile, root])
 
   useEffect(() => {
     let raf = 0
@@ -31,25 +40,24 @@ export default function EyeRemote({ eye, root, screenKey }: {
     let featureWindow: number[][] = []
     let selectedAt = 0
     let cooldown = 0
-    const repeat = new RemoteRepeater()
+    const repeat = new RemoteRepeater(pace === 'steady' ? 420 : 280, pace === 'steady' ? 950 : 700)
     const blink = new RemoteBlink()
-    selected.current = null
 
     const buttons = () => Array.from(root.current?.querySelectorAll<HTMLButtonElement>('button:not(:disabled)') ?? [])
       .filter((b) => !b.closest('.eye-remote') && b.getBoundingClientRect().width > 0)
-    const mark = (button: HTMLButtonElement, now: number) => {
+    const mark = (button: HTMLButtonElement, now: number, scroll = true) => {
       selected.current?.classList.remove('remote-focused')
       selected.current = button
       button.classList.add('remote-focused')
       setSelectedLabel(button.textContent?.trim() ?? 'Selected')
       selectedAt = now
-      button.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth' })
+      if (scroll) button.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth' })
     }
     const navigate = (direction: Direction, now: number) => {
       const controls = buttons()
       if (!selected.current || !controls.includes(selected.current)) {
         const initial = controls.find((b) => b.classList.contains('need-tile')) ?? controls[0]
-        if (initial) mark(initial, now)
+        if (initial) mark(initial, now, Boolean(profile))
         return
       }
       const items = controls.map((b) => {
@@ -59,10 +67,16 @@ export default function EyeRemote({ eye, root, screenKey }: {
       })
       const id = nextRemoteItem(items, selected.current.dataset.remoteId!, direction)
       const next = controls.find((b) => b.dataset.remoteId === id)
-      if (next && next !== selected.current) mark(next, now)
+      if (next && next !== selected.current) { mark(next, now); setFeedback('') }
+      else if (direction !== 'center') setFeedback(`No more controls ${direction}`)
+    }
+    moveRef.current = (direction) => {
+      repeat.reset(); setMoveProgress(0)
+      navigate(direction, performance.now())
     }
     const keydown = (e: KeyboardEvent) => {
-      if (configuring || e.target instanceof HTMLInputElement || (e.target instanceof HTMLElement && e.target.closest('.eye-remote'))) return
+      if (configuring || e.target instanceof HTMLInputElement || e.target instanceof HTMLSelectElement ||
+        (e.target instanceof HTMLElement && e.target.closest('.eye-remote') && !e.target.closest('.remote-edge'))) return
       const directions: Record<string, Direction> = { ArrowLeft: 'left', ArrowRight: 'right', ArrowUp: 'up', ArrowDown: 'down' }
       if (directions[e.key]) { e.preventDefault(); navigate(directions[e.key], performance.now()) }
       if (e.key === 'Enter' && !e.repeat && selected.current) { e.preventDefault(); selected.current.click() }
@@ -80,7 +94,7 @@ export default function EyeRemote({ eye, root, screenKey }: {
       }
       if (paused || document.hidden || !snap.detectedFace || now - snap.at > 350 || snap.features?.length !== 4 || !snap.features.every(Number.isFinite)) {
         repeat.reset(); blink.reset(); featureWindow = []
-        setDetected('center'); setStrength(0)
+        setDetected('center'); setMoveProgress(0)
         samples = []; collectAt = 0
         if (configuring) setProgress(0)
         if (profile || configuring) setStatus(paused ? 'Remote paused' : now - snap.at > 350 ? 'Waiting for a fresh camera frame' : 'Tracking paused — face the camera')
@@ -120,11 +134,13 @@ export default function EyeRemote({ eye, root, screenKey }: {
         selected.current.click()
         cooldown = now + 1200
         repeat.reset()
+        setDetected('center'); setMoveProgress(0)
         setStatus('Selected — ready again in a moment')
         return
       }
       if (lid > 0.55 || now < cooldown) {
         repeat.reset(); featureWindow = []
+        setDetected('center'); setMoveProgress(0)
         if (lid > 0.55) setStatus('Eyes closing — movement paused')
         return
       }
@@ -133,34 +149,43 @@ export default function EyeRemote({ eye, root, screenKey }: {
       const signal = directionSignal(profile, medianFeatures(featureWindow))
       const direction = signal.direction
       setDetected(direction)
-      setStrength(Math.round(Math.min(1, signal.strength) * 100))
-      setStatus(direction === 'center' ? 'Ready · hold a blink to select' : `${SYMBOLS[direction]} Moving ${direction} · center stops`)
+      setStatus(direction === 'center' ? 'Look at an edge arrow to move' : `${SYMBOLS[direction]} Hold your look to move ${direction}`)
       const move = repeat.update(direction, now)
+      setMoveProgress(repeat.progress(now))
       if (move) navigate(move, now)
     }
     raf = requestAnimationFrame(tick)
     return () => {
       cancelAnimationFrame(raf)
       window.removeEventListener('keydown', keydown)
+      moveRef.current = () => undefined
       for (const b of buttons()) b.classList.remove('remote-focused')
     }
-  }, [calibrationDirection, configuring, eye.snapshotRef, paused, profile, root, screenKey, step])
+  }, [calibrationDirection, configuring, eye.snapshotRef, pace, paused, profile, root, screenKey, step])
 
   const start = () => { templates.current = {}; setProfile(null); setPaused(false); setProgress(0); setStep(0) }
   return <>
     <div className="eye-remote remote-bar">
       <div><strong>Eye remote</strong><span role="status">{status}</span></div>
-      <div className="remote-selection">Selected: <strong>{selectedLabel}</strong></div>
-      {profile && <div className="remote-feedback" aria-label="Detected eye direction">
-        {DIRECTIONS.map((d) => <span key={d} className={detected === d ? 'active' : ''} title={d}>{SYMBOLS[d]}</span>)}
-        <small>Eye movement {strength}%</small>
-      </div>}
+      <div className="remote-selection"><span>Highlighted</span><strong>{selectedLabel}</strong><small>{profile ? 'Close eyes briefly, then open to choose' : 'Tap a card, or set up eye control'}</small></div>
+      <label className="remote-pace">Movement pace<select value={pace} onChange={(event) => setPace(event.target.value as 'steady' | 'quick')}><option value="steady">Steady</option><option value="quick">Quicker</option></select></label>
       <button type="button" className="home-btn" onClick={start} disabled={eye.status !== 'ready'}>{profile ? 'Reset directions' : 'Set up remote'}</button>
       {profile && <button type="button" className="home-btn" onClick={() => setPaused((v) => !v)}>{paused ? 'Resume' : 'Pause'}</button>}
       {profile && <button type="button" className="home-btn" onClick={() => { templates.current = { ...profile }; setPaused(false); setProgress(0); setStep(5) }}>Re-center</button>}
-      {!profile && !configuring && <p>Look in a direction to move one card. Keep looking to repeat. Center stops. Close both eyes for about half a second, then open to select. Arrow keys and Enter also work.</p>}
+      {!configuring && <p className="remote-howto"><span><b>1</b> Look at an edge arrow to move</span><span><b>2</b> Look back to the middle to stop</span><span><b>3</b> Hold a blink (~½ second) to choose</span></p>}
+      {feedback && <p role="status">{feedback}</p>}
       {eye.status === 'error' && <p>{eye.error}</p>}
     </div>
+    {!configuring && <div className="eye-remote remote-edges" aria-label="Directional eye controls">
+      {DIRECTIONS.filter((d) => d !== 'center').map((d) => <button type="button" key={d}
+        className={`remote-edge remote-edge-${d} ${profile && !paused && detected === d ? 'is-looking' : ''}`}
+        style={{ '--move-progress': `${profile && !paused && detected === d ? moveProgress * 100 : 0}%` } as CSSProperties}
+        disabled={paused} aria-label={`Look here or tap to move ${d}`}
+        onClick={() => moveRef.current(d)}>
+        <span className="remote-edge-arrow" aria-hidden="true">{SYMBOLS[d]}</span><strong>{d}</strong><small>{paused ? 'Paused' : 'Look here'}</small>
+        <span className="remote-edge-progress" aria-hidden="true" />
+      </button>)}
+    </div>}
     {configuring && <div className={`eye-remote remote-setup setup-${calibrationDirection}`} role="dialog" aria-modal="true" aria-label="Set up eye remote">
       <div className="remote-setup-copy"><strong>{step === 5 ? 'Return to center · ready to use' : `Direction ${step + 1} of 5`}</strong><p>{status}</p><p>Move your eyes toward the symbol. Keep your head comfortable and still.</p>
         <progress value={progress} max={1} /><button type="button" className="home-btn" onClick={() => { setStep(-1); setStatus('Setup cancelled — tap Set up remote to try again') }}>Cancel setup</button></div>

@@ -255,7 +255,7 @@ export default function NeedsBoard({ onExit }: { onExit: () => void }) {
   }
 
   return (
-    <div ref={boardRef} className={`needs-board screen-${screen}`}>
+    <div ref={boardRef} className={`needs-board screen-${screen} ${screen !== 'gaze' ? 'has-eye-remote' : ''}`}>
       <video ref={eye.videoRef} className="board-cam" muted playsInline />
       {pager && <div className="pager-banner" role="status">{pager}</div>}
       <audio
