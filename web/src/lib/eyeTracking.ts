@@ -68,7 +68,7 @@ function median(values: number[]): number {
   return s[Math.floor(s.length / 2)]
 }
 
-// Canthi stay put when you look up/down. Eyelids do not — using them as the
+// Canthi stay put when you look up/down. Eyelids do not, so using them as the
 // Y origin/scale cancels vertical gaze.
 function irisInEye(landmarks: NormalizedLandmark[], spec: typeof LEFT_EYE, vw: number, vh: number): Vec2 {
   const iris = avgIris(landmarks, spec.iris, vw, vh)

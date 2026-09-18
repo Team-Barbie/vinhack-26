@@ -41,7 +41,7 @@ export default function EyeRemote({ eye, root, screenKey }: {
       selected.current?.classList.remove('remote-focused')
       selected.current = button
       button.classList.add('remote-focused')
-      setSelectedLabel(button.textContent?.trim() ?? 'Selected')
+      setSelectedLabel(button.getAttribute('aria-label') ?? button.textContent?.trim() ?? 'Selected')
       selectedAt = now
       button.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth' })
     }
@@ -83,7 +83,7 @@ export default function EyeRemote({ eye, root, screenKey }: {
         setDetected('center'); setStrength(0)
         samples = []; collectAt = 0
         if (configuring) setProgress(0)
-        if (profile || configuring) setStatus(paused ? 'Remote paused' : now - snap.at > 350 ? 'Waiting for a fresh camera frame' : 'Tracking paused — face the camera')
+        if (profile || configuring) setStatus(paused ? 'Remote paused' : now - snap.at > 350 ? 'Waiting for a fresh camera frame' : 'Tracking paused. Face the camera.')
         return
       }
       if (snap.at <= lastFrame) return
@@ -102,7 +102,7 @@ export default function EyeRemote({ eye, root, screenKey }: {
         const median = medianFeatures(samples)
         const noise = Math.max(...median.map((v, i) =>
           Math.sqrt(samples.reduce((s, f) => s + (f[i] - v) ** 2, 0) / samples.length)))
-        if (noise > 0.018) { samples = []; collectAt = now; setStatus('Hold steady — retrying this direction'); return }
+        if (noise > 0.018) { samples = []; collectAt = now; setStatus('Hold steady. Retrying this direction.'); return }
         templates.current[calibrationDirection] = median
         if (step < 5) { setProgress(0); setStep(step + 1) }
         else {
@@ -110,7 +110,7 @@ export default function EyeRemote({ eye, root, screenKey }: {
           if (!profileValid(candidate) || DIRECTIONS.some((d) => classifyDirection(candidate, candidate[d]) !== d)) {
             setStep(-1); setStatus('Directions overlapped. Try setup again with slightly larger eye movements.'); return
           }
-          setProfile({ ...candidate }); setStep(-1); setStatus('Remote ready — look in a direction to move')
+          setProfile({ ...candidate }); setStep(-1); setStatus('Remote ready. Look in a direction to move.')
         }
         return
       }
@@ -120,12 +120,12 @@ export default function EyeRemote({ eye, root, screenKey }: {
         selected.current.click()
         cooldown = now + 1200
         repeat.reset()
-        setStatus('Selected — ready again in a moment')
+        setStatus('Selected. Ready again in a moment.')
         return
       }
       if (lid > 0.55 || now < cooldown) {
         repeat.reset(); featureWindow = []
-        if (lid > 0.55) setStatus('Eyes closing — movement paused')
+        if (lid > 0.55) setStatus('Eyes closing. Movement paused.')
         return
       }
       featureWindow.push(snap.features!.slice(0, 4))
@@ -163,7 +163,7 @@ export default function EyeRemote({ eye, root, screenKey }: {
     </div>
     {configuring && <div className={`eye-remote remote-setup setup-${calibrationDirection}`} role="dialog" aria-modal="true" aria-label="Set up eye remote">
       <div className="remote-setup-copy"><strong>{step === 5 ? 'Return to center · ready to use' : `Direction ${step + 1} of 5`}</strong><p>{status}</p><p>Move your eyes toward the symbol. Keep your head comfortable and still.</p>
-        <progress value={progress} max={1} /><button type="button" className="home-btn" onClick={() => { setStep(-1); setStatus('Setup cancelled — tap Set up remote to try again') }}>Cancel setup</button></div>
+        <progress value={progress} max={1} /><button type="button" className="home-btn" onClick={() => { setStep(-1); setStatus('Setup cancelled. Tap Set up remote to try again.') }}>Cancel setup</button></div>
       <div className={`remote-dot remote-dot-${calibrationDirection}`}>{SYMBOLS[calibrationDirection]}</div>
     </div>}
   </>

@@ -233,7 +233,7 @@ export default function NeedsBoard({ onExit }: { onExit: () => void }) {
         <div className="board-setup">
           <span className="board-setup-eyebrow">GazeBridge</span>
           <h1>Look at a request. Blink to confirm.</h1>
-          <p>Sit 50–80 cm from the camera. Keep your head still and move only your eyes to each glowing dot. Recalibrate — the old saved map will not work.</p>
+          <p>Sit 50–80 cm from the camera. Keep your head still and move only your eyes to each glowing dot. Recalibrate first, because older saved maps no longer work.</p>
           <FaceChip eye={eye} />
           {eye.status === 'error' && <p className="board-setup-error">{eye.error}</p>}
           <div className="board-setup-actions">
@@ -246,7 +246,7 @@ export default function NeedsBoard({ onExit }: { onExit: () => void }) {
               </button>
             )}
             <button type="button" className="home-btn" onClick={() => setBoardPhase('board')}>
-              Skip — tap to demo
+              Skip and use touch
             </button>
           </div>
         </div>
@@ -267,7 +267,7 @@ export default function NeedsBoard({ onExit }: { onExit: () => void }) {
       />
       <div className="board-nav">
         <button type="button" className="home-btn" onClick={onExit}>
-          ← Home
+          Home
         </button>
         <button type="button" className="home-btn" onClick={() => screen === 'gaze' ? setBoardPhase('calibrating') : setRemoteVersion((v) => v + 1)}>
           {screen === 'gaze' ? 'Recalibrate' : 'Reset remote'}
@@ -314,7 +314,7 @@ export default function NeedsBoard({ onExit }: { onExit: () => void }) {
           className={`emergency-btn ${screen === 'urgent' ? 'active' : ''}`}
           onClick={() => setScreen('urgent')}
         >
-          🚨 Emergency
+          Emergency
         </button>
       </div>
 
@@ -328,14 +328,14 @@ export default function NeedsBoard({ onExit }: { onExit: () => void }) {
               className={`answer-btn answer-yes ${answerFlash === 'yes' ? 'flash' : ''}`}
               onClick={() => answer('yes')}
             >
-              ✅ Yes
+              Yes
             </button>
             <button
               type="button"
               className={`answer-btn answer-no ${answerFlash === 'no' ? 'flash' : ''}`}
               onClick={() => answer('no')}
             >
-              ❌ No
+              No
             </button>
           </div>
         </div>
@@ -364,7 +364,7 @@ export default function NeedsBoard({ onExit }: { onExit: () => void }) {
               onClick={speakSentence}
               disabled={sentence.length === 0}
             >
-              🔊 Speak
+              Speak
             </button>
             <button
               type="button"
@@ -372,7 +372,7 @@ export default function NeedsBoard({ onExit }: { onExit: () => void }) {
               onClick={undoSentence}
               disabled={sentence.length === 0}
             >
-              ↶ Undo
+              Undo
             </button>
             <button
               type="button"
@@ -398,11 +398,13 @@ export default function NeedsBoard({ onExit }: { onExit: () => void }) {
               <button
                 key={tile.id}
                 type="button"
-                className={`need-tile ${tile.group ? `group-${tile.group}` : ''} ${spokenTile === tile.id ? 'spoken' : ''}`}
+                aria-label={tile.label}
+                className={`need-tile ${spokenTile === tile.id ? 'spoken' : ''}`}
                 onClick={() => activateTile(tile)}
               >
                 <span className="need-icon">{tile.icon}</span>
                 <span className="need-label">{tile.label}</span>
+                {tile.group && <span className="need-group">{tile.group}</span>}
               </button>
             ))}
           </div>

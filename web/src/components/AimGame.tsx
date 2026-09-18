@@ -182,14 +182,14 @@ function Setup({
   return (
     <div className="aim-setup">
       <button type="button" className="aim-back" onClick={onExit}>
-        ← Home
+        Home
       </button>
       <div className="aim-setup-card">
         <span className="aim-eyebrow">Aim Trainer</span>
         <h1 className="aim-title">Aim with your eyes. Blink to shoot.</h1>
         <p className="aim-lede">
           Sit 50–80 cm from the screen with your face evenly lit and your head mostly still. Calibration takes
-          about 15 seconds — just follow the dot with your eyes.
+          about 15 seconds. Just follow the dot with your eyes.
         </p>
 
         <div className="aim-status-row">
@@ -295,7 +295,7 @@ export function Calibration({
       if (buffer.length < COLLECT_TARGET) {
         if (now - collectAt > COLLECT_TIMEOUT_MS) {
           finish(() => {
-            setWarning("Couldn't see your eyes — look at the dot and hold still.")
+            setWarning("Couldn't see your eyes. Look at the dot and hold still.")
             setFramesCollected(0)
             setAttempt((a) => a + 1)
           })
@@ -395,7 +395,7 @@ function Review({
           Quality: <span className={`aim-quality is-${quality.tone}`}>{quality.label}</span>
         </h1>
         <p className="aim-lede">
-          Look around the screen — the crosshair should follow your eyes.
+          Look around the screen. The crosshair should follow your eyes.
           {quality.tone === 'rough' && ' Tracking looks unreliable; recalibrating in better light usually helps.'}
         </p>
         <div className="aim-actions">
@@ -615,7 +615,7 @@ function Gridshot({
         </div>
         <div className="aim-hud-actions">
           <button type="button" className="aim-chip-btn" onClick={onToggleMode}>
-            {mode === 'gaze' ? '👁 Gaze' : '🖱 Mouse'} · M
+            {mode === 'gaze' ? 'Gaze' : 'Mouse'} (M)
           </button>
           <button type="button" className="aim-chip-btn" onClick={onQuit}>
             Quit
@@ -636,7 +636,7 @@ function Gridshot({
       ))}
 
       {countdown > 0 && <div className="aim-countdown">{countdown}</div>}
-      {faceLost && countdown === 0 && <div className="aim-banner">Face not found — look at the screen</div>}
+      {faceLost && countdown === 0 && <div className="aim-banner">Face not found. Look at the screen.</div>}
 
       <Crosshair cursorRef={cursorRef} dimmed={faceLost} />
     </div>
@@ -674,7 +674,7 @@ function Results({
           <div>
             <span className="aim-hud-label">Avg reaction</span>
             <span className="aim-hud-value">
-              {results.avgReactionMs === null ? '—' : `${Math.round(results.avgReactionMs)} ms`}
+              {results.avgReactionMs === null ? 'No hits' : `${Math.round(results.avgReactionMs)} ms`}
             </span>
           </div>
           <div>

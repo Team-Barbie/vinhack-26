@@ -18,32 +18,33 @@
   align-items: center;
   gap: 12px 20px;
   padding: 14px 20px;
-  border: 1px solid #3ee0c560;
-  border-radius: 18px;
-  background: #101b19f5;
-  box-shadow: 0 8px 28px #0006;
+  border: 1px solid var(--glass-border);
+  border-radius: var(--r-md);
+  background: rgba(10, 10, 10, 0.78);
+  backdrop-filter: blur(var(--glass-blur)) saturate(160%);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(160%);
+  box-shadow: inset 0 1px 0 var(--glass-sheen), var(--shadow-float);
 }
 .remote-bar > div:first-child { display: grid; gap: 4px; flex: 1; min-width: 200px; }
-.remote-bar span, .remote-bar p { color: #bbd5ce; font-size: 0.9rem; }
+.remote-bar span, .remote-bar p { color: var(--text-dim); font-size: 0.9rem; }
 .remote-bar p { width: 100%; margin: 0; }
 .remote-bar .home-btn { min-height: 44px; padding: 0 16px; font-size: 0.9rem; }
-.remote-selection { color: #92edcf; }
+.remote-selection { color: var(--text); }
 .remote-feedback { display: flex; gap: 5px; align-items: center; flex-wrap: wrap; }
-.remote-feedback span { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 6px; background: #ffffff0c; }
-.remote-feedback span.active { color: #08221b; background: #65ffd5; }
-.remote-feedback small { color: #bbd5ce; font-variant-numeric: tabular-nums; }
+.remote-feedback span { display: grid; place-items: center; width: 28px; height: 28px; border-radius: var(--r-xs); background: var(--glass-tint); }
+.remote-feedback span.active { color: var(--accent-ink); background: var(--accent); }
+.remote-feedback small { color: var(--text-dim); font-variant-numeric: tabular-nums; }
 .needs-board button.remote-focused {
-  outline: 3px solid #65ffd5;
+  outline: 3px solid var(--accent);
   outline-offset: 3px;
-  box-shadow: 0 0 0 7px #3ee0c526, 0 10px 32px #0005;
-  background-image: linear-gradient(#3ee0c51c, #3ee0c51c);
+  box-shadow: 0 0 0 7px var(--accent-tint), var(--shadow-float);
   scroll-margin-block: 155px 30px;
 }
-.remote-setup { position: fixed; inset: 0; z-index: 60; background: #090f12fa; }
+.remote-setup { position: fixed; inset: 0; z-index: 60; background: rgba(6, 6, 6, 0.97); }
 .remote-setup-copy { position: absolute; top: 22%; left: 24%; right: 24%; text-align: center; }
-.remote-setup-copy p { color: #c8d5d2; }
-.remote-setup-copy progress { display: block; width: 180px; margin: 20px auto; accent-color: #3ee0c5; }
-.remote-dot { position: absolute; width: 70px; height: 70px; display: grid; place-items: center; border-radius: 50%; background: #3ee0c5; color: #08221b; font-size: 42px; transform: translate(-50%, -50%); box-shadow: 0 0 50px #3ee0c555; }
+.remote-setup-copy p { color: var(--text-dim); }
+.remote-setup-copy progress { display: block; width: 180px; margin: 20px auto; accent-color: var(--accent); }
+.remote-dot { position: absolute; width: 70px; height: 70px; display: grid; place-items: center; border-radius: 50%; background: var(--accent); color: var(--accent-ink); font-size: 42px; transform: translate(-50%, -50%); box-shadow: 0 0 40px var(--accent-glow); }
 .remote-dot-center { left: 50%; top: 50%; }
 .setup-center .remote-setup-copy { top: auto; bottom: 5%; }
 .remote-dot-left { left: 8%; top: 50%; }
@@ -386,7 +387,9 @@
   grid-template-columns: repeat(3, 1fr);
   gap: 20px;
   overflow-y: auto;
-  padding-bottom: 4px;
+  /* Room for the eye-remote focus ring, which the scroll container would otherwise clip. */
+  margin: -12px;
+  padding: 12px;
   animation: screen-in var(--slow) var(--ease);
 }
 
@@ -412,7 +415,6 @@
 .need-tile:hover {
   background: var(--glass-tint-strong);
   border-color: var(--line-strong);
-  transform: translateY(-2px);
 }
 
 .need-tile:active {
@@ -425,7 +427,6 @@
   border-color: var(--accent);
   box-shadow: 0 0 0 4px var(--accent-glow), var(--shadow-float);
   color: var(--accent-ink);
-  transform: translateY(-2px) scale(1.015);
 }
 
 .need-icon {
@@ -461,37 +462,24 @@
 
 .screen-sentence .need-tile {
   min-height: 140px;
-  gap: 10px;
+  gap: 8px;
   padding: 18px 12px;
-  border-top-width: 4px;
 }
 
 .screen-sentence .need-icon {
   font-size: 48px;
 }
 
-.screen-sentence .group-person {
-  border-top-color: #f0a85c;
+.need-group {
+  color: var(--muted);
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
 }
 
-.screen-sentence .group-action {
-  border-top-color: #e879f9;
-}
-
-.screen-sentence .group-question {
-  border-top-color: #c4c4c0;
-}
-
-.screen-sentence .group-care {
-  border-top-color: #f3df58;
-}
-
-.screen-sentence .group-feeling {
-  border-top-color: #5fb8e0;
-}
-
-.screen-sentence .group-modifier {
-  border-top-color: #6bd98f;
+.need-tile.spoken .need-group {
+  color: var(--accent-ink);
 }
 
 .board-cam {
@@ -521,9 +509,9 @@
   width: 22px;
   height: 22px;
   margin: -11px 0 0 -11px;
-  border: 3px solid #3ee0c5;
+  border: 3px solid var(--accent);
   border-radius: 50%;
-  box-shadow: 0 0 0 6px rgba(62, 224, 197, 0.2);
+  box-shadow: 0 0 0 6px var(--accent-tint);
   pointer-events: none;
 }
 
@@ -575,9 +563,9 @@
 }
 
 .need-tile.is-gaze {
-  border-color: #3ee0c5;
-  box-shadow: inset 0 0 0 3px rgba(62, 224, 197, 0.45);
-  background: linear-gradient(90deg, rgba(62, 224, 197, 0.28) var(--dwell, 0%), transparent var(--dwell, 0%));
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 3px var(--accent-glow);
+  background: linear-gradient(90deg, var(--accent-glow) var(--dwell, 0%), transparent var(--dwell, 0%));
 }
 
 @media (max-width: 720px) {

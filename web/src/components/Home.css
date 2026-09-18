@@ -68,19 +68,12 @@
   box-shadow: inset 0 1px 0 var(--glass-sheen), var(--shadow-card);
   color: var(--text);
   text-align: left;
-  transition: background var(--fast) var(--ease), border-color var(--fast) var(--ease),
-    transform var(--fast) var(--ease), box-shadow var(--fast) var(--ease);
+  transition: background var(--fast) var(--ease), border-color var(--fast) var(--ease);
 }
 
 .home-choice:hover {
   background: var(--glass-tint-strong);
   border-color: var(--line-strong);
-  transform: translateY(-3px);
-  box-shadow: inset 0 1px 0 var(--glass-sheen), var(--shadow-float);
-}
-
-.home-choice:active {
-  transform: scale(0.98);
 }
 
 .home-choice.is-primary {
@@ -88,21 +81,19 @@
   background: linear-gradient(160deg, rgba(255, 255, 255, 0.1), transparent 60%), var(--glass-tint);
 }
 
-.home-choice-icon {
-  display: grid;
-  place-items: center;
-  width: 84px;
-  height: 84px;
-  border: 1px solid var(--glass-border);
-  border-radius: var(--r-md);
-  background: var(--surface-2);
-  font-size: 44px;
+.home-choice-kicker {
+  color: var(--text-dim);
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
 }
 
 .home-choice-body {
   display: flex;
   flex: 1;
   flex-direction: column;
+  justify-content: flex-end;
   gap: 8px;
 }
 
@@ -119,27 +110,30 @@
   line-height: 1.5;
 }
 
-.home-choice-arrow {
-  align-self: flex-end;
-  display: grid;
-  place-items: center;
-  width: 52px;
-  height: 52px;
-  border-radius: var(--r-pill);
-  background: linear-gradient(180deg, #ffffff, rgba(232, 232, 230, 0.92));
-  color: var(--accent-ink);
-  font-size: 1.3rem;
-  font-weight: 800;
-  transition: transform var(--fast) var(--ease);
-}
-
-.home-choice:hover .home-choice-arrow {
-  transform: translateX(4px);
-}
-
-.home-footnote {
+.home-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
   color: var(--muted);
   font-size: 0.85rem;
+}
+
+.home-links {
+  display: flex;
+  gap: 20px;
+}
+
+.home-links button {
+  color: var(--text-dim);
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.home-links button:hover {
+  color: var(--text);
 }
 
 @media (max-width: 720px) {

@@ -1,0 +1,50 @@
+.legal {
+  width: min(720px, 100%);
+  margin: 0 auto;
+  padding: 40px 24px 80px;
+  color: var(--text-dim);
+  line-height: 1.65;
+}
+
+.legal-back {
+  min-height: 44px;
+  margin-bottom: 36px;
+  padding: 0 18px;
+  border: 1px solid var(--glass-border);
+  border-radius: var(--r-md);
+  background: var(--glass-tint);
+  color: var(--text);
+  font-weight: 700;
+}
+
+.legal-back:hover {
+  background: var(--glass-tint-strong);
+}
+
+.legal h1 {
+  color: var(--text);
+  font-size: clamp(2.2rem, 5vw, 3rem);
+}
+
+.legal-updated {
+  margin: 8px 0 32px;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.legal h2 {
+  margin: 32px 0 8px;
+  color: var(--text);
+  font-size: 1.15rem;
+  letter-spacing: -0.01em;
+}
+
+.legal ul {
+  margin: 8px 0 0;
+  padding-left: 20px;
+}
+
+.legal a {
+  color: var(--text);
+  text-underline-offset: 3px;
+}
