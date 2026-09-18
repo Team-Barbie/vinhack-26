@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useEye } from '../hooks/EyeTrackerProvider'
 import { directionSignal, medianFeatures, type Direction, type RemoteProfile } from '../lib/eyeRemote'
-import { Crosshair, DirectionCalibration, FaceChip, useCursor } from './Calibration'
-import './AimGame.css'
+import { DirectionCalibration, FaceChip } from './Calibration'
+import './Panel.css'
 import './CalibrationFlow.css'
 
 type Phase = 'intro' | 'calibrating' | 'check'
@@ -50,7 +50,6 @@ export default function CalibrationFlow({ onDone }: { onDone: () => void }) {
   const { setPreview, saveCalibration } = eye
   const [phase, setPhase] = useState<Phase>('intro')
   const [failure, setFailure] = useState('')
-  const cursorRef = useCursor(eye, 'gaze')
   const ready = eye.status === 'ready' && eye.faceFound
 
   useEffect(() => {
@@ -80,21 +79,19 @@ export default function CalibrationFlow({ onDone }: { onDone: () => void }) {
 
   if (phase === 'check' && eye.remoteProfile) {
     return (
-      <main className="aim-setup">
-        <Crosshair cursorRef={cursorRef} dimmed={!eye.faceFound} />
-        <div className="aim-setup-card">
-          <span className="aim-eyebrow">Calibration saved</span>
-          <h1 className="aim-title">Check it works</h1>
-          <p className="aim-lede">
-            Look up, down, left and right. The matching box should light up, and look back at the middle to settle it.
-            The crosshair follows your eyes too.
+      <main className="panel-page">
+        <div className="panel">
+          <span className="panel-eyebrow">Calibration saved</span>
+          <h1 className="panel-title">Check it works</h1>
+          <p className="panel-lede">
+            Look up, down, left and right. The matching box should light up. Look back at the middle to settle it.
           </p>
           <DirectionPad profile={eye.remoteProfile} />
-          <div className="aim-actions">
-            <button type="button" className="aim-btn is-primary" onClick={onDone}>
+          <div className="panel-actions">
+            <button type="button" className="panel-btn is-primary" onClick={onDone}>
               Looks right, continue
             </button>
-            <button type="button" className="aim-btn" onClick={() => setPhase('calibrating')}>
+            <button type="button" className="panel-btn" onClick={() => setPhase('calibrating')}>
               Calibrate again
             </button>
           </div>
@@ -104,30 +101,30 @@ export default function CalibrationFlow({ onDone }: { onDone: () => void }) {
   }
 
   return (
-    <main className="aim-setup">
-      <div className="aim-setup-card">
-        <span className="aim-eyebrow">GazeBridge</span>
-        <h1 className="aim-title">First, calibrate your eyes</h1>
-        <p className="aim-lede">
+    <main className="panel-page">
+      <div className="panel">
+        <span className="panel-eyebrow">GazeBridge</span>
+        <h1 className="panel-title">First, calibrate your eyes</h1>
+        <p className="panel-lede">
           You only do this once. Sit about an arm's length from the laptop with your face lit and keep your head still.
           A dot will appear in the middle, then on the left, right, top and bottom of the screen. Look at each one until
           the bar fills. It takes about 15 seconds.
         </p>
-        {failure && <p className="aim-error">{failure}</p>}
-        <div className="aim-status-row">
+        {failure && <p className="panel-error">{failure}</p>}
+        <div className="panel-status">
           <FaceChip eye={eye} />
         </div>
-        {eye.status === 'error' && <p className="aim-error">{eye.error}</p>}
-        <div className="aim-actions">
-          <button type="button" className="aim-btn is-primary" disabled={!ready} onClick={() => setPhase('calibrating')}>
+        {eye.status === 'error' && <p className="panel-error">{eye.error}</p>}
+        <div className="panel-actions">
+          <button type="button" className="panel-btn is-primary" disabled={!ready} onClick={() => setPhase('calibrating')}>
             {eye.calibrated ? 'Calibrate again' : 'Start'}
           </button>
           {eye.calibrated ? (
-            <button type="button" className="aim-btn" onClick={onDone}>
+            <button type="button" className="panel-btn" onClick={onDone}>
               Keep my current calibration
             </button>
           ) : (
-            <button type="button" className="aim-btn is-ghost" onClick={onDone}>
+            <button type="button" className="panel-btn is-ghost" onClick={onDone}>
               Skip, I'll use touch
             </button>
           )}

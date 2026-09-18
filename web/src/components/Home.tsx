@@ -1,6 +1,6 @@
 import './Home.css'
 
-export type Destination = 'board' | 'game' | 'calibrate' | 'privacy' | 'terms'
+export type Destination = 'board' | 'calibrate' | 'privacy' | 'terms'
 
 export default function Home({ onSelect }: { onSelect: (destination: Destination) => void }) {
   return (
@@ -21,16 +21,6 @@ export default function Home({ onSelect }: { onSelect: (destination: Destination
             <span className="home-choice-title">Patient Board</span>
             <span className="home-choice-desc">
               Ask for water, a nurse, or a change of position. Answer yes or no.
-            </span>
-          </span>
-        </button>
-
-        <button type="button" className="home-choice" onClick={() => onSelect('game')}>
-          <span className="home-choice-kicker">Practice</span>
-          <span className="home-choice-body">
-            <span className="home-choice-title">Aim Trainer</span>
-            <span className="home-choice-desc">
-              Aim with your eyes and blink to shoot. Good practice before using the board.
             </span>
           </span>
         </button>

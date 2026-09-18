@@ -30,10 +30,44 @@
 .remote-bar p { width: 100%; margin: 0; }
 .remote-bar .home-btn { min-height: 44px; padding: 0 16px; font-size: 0.9rem; }
 .remote-selection { color: var(--text); }
-.remote-feedback { display: flex; gap: 5px; align-items: center; flex-wrap: wrap; }
-.remote-feedback span { display: grid; place-items: center; width: 28px; height: 28px; border-radius: var(--r-xs); background: var(--glass-tint); }
-.remote-feedback span.active { color: var(--accent-ink); background: var(--accent); }
-.remote-feedback small { color: var(--text-dim); font-variant-numeric: tabular-nums; }
+.remote-guide { display: flex; align-items: center; gap: 14px; }
+.remote-guide small { color: var(--text-dim); font-variant-numeric: tabular-nums; }
+/* Direction guide: lights up the way the eyes are looking; tapping moves the highlight. */
+.remote-pad {
+  display: grid;
+  grid-template-columns: repeat(3, 76px);
+  grid-template-rows: repeat(3, 38px);
+  grid-template-areas: '. up .' 'left center right' '. down .';
+  gap: 4px;
+}
+.remote-pad-btn {
+  border: 1px solid var(--glass-border);
+  border-radius: var(--r-xs);
+  background: var(--glass-tint);
+  color: var(--text);
+  font-size: 0.85rem;
+  font-weight: 700;
+  transition: background var(--fast) var(--ease), color var(--fast) var(--ease), border-color var(--fast) var(--ease);
+}
+.remote-pad-btn:hover { background: var(--glass-tint-strong); }
+.remote-pad-btn.is-up { grid-area: up; }
+.remote-pad-btn.is-left { grid-area: left; }
+.remote-pad-btn.is-right { grid-area: right; }
+.remote-pad-btn.is-down { grid-area: down; }
+.remote-bar .remote-pad-center {
+  grid-area: center;
+  display: grid;
+  place-items: center;
+  border-radius: var(--r-xs);
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+.remote-pad-btn.is-active,
+.remote-bar .remote-pad-center.is-active {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--accent-ink);
+}
 .needs-board button.remote-focused {
   outline: 3px solid var(--accent);
   outline-offset: 3px;

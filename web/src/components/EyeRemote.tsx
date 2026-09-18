@@ -1,8 +1,14 @@
 import { useEffect, useRef, useState, type RefObject } from 'react'
 import type { EyeTracker } from '../hooks/useEyeTracker'
-import { directionSignal, DIRECTIONS, medianFeatures, nextRemoteItem, RemoteBlink, RemoteRepeater, type Direction } from '../lib/eyeRemote'
+import { directionSignal, medianFeatures, nextRemoteItem, RemoteBlink, RemoteRepeater, type Direction } from '../lib/eyeRemote'
 
 const SYMBOLS: Record<Direction, string> = { center: '●', left: '←', right: '→', up: '↑', down: '↓' }
+const GUIDE: { direction: Exclude<Direction, 'center'>; label: string }[] = [
+  { direction: 'up', label: '↑ Up' },
+  { direction: 'left', label: '← Left' },
+  { direction: 'right', label: 'Right →' },
+  { direction: 'down', label: '↓ Down' },
+]
 
 // Direction templates come from the app-wide calibration (eye.remoteProfile);
 // this component only turns live eye features into moves and blink selections.
@@ -17,6 +23,7 @@ export default function EyeRemote({ eye, root, screenKey }: {
   const [strength, setStrength] = useState(0)
   const selected = useRef<HTMLButtonElement | null>(null)
   const idCounter = useRef(0)
+  const navigateRef = useRef<(direction: Direction) => void>(() => undefined)
 
   useEffect(() => {
     let raf = 0
@@ -55,6 +62,7 @@ export default function EyeRemote({ eye, root, screenKey }: {
       const next = controls.find((b) => b.dataset.remoteId === id)
       if (next && next !== selected.current) mark(next, now)
     }
+    navigateRef.current = (direction) => navigate(direction, performance.now())
     const keydown = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement || (e.target instanceof HTMLElement && e.target.closest('.eye-remote'))) return
       const directions: Record<string, Direction> = { ArrowLeft: 'left', ArrowRight: 'right', ArrowUp: 'up', ArrowDown: 'down' }
@@ -108,6 +116,7 @@ export default function EyeRemote({ eye, root, screenKey }: {
     raf = requestAnimationFrame(tick)
     return () => {
       cancelAnimationFrame(raf)
+      navigateRef.current = () => undefined
       window.removeEventListener('keydown', keydown)
       for (const b of buttons()) b.classList.remove('remote-focused')
     }
@@ -117,10 +126,24 @@ export default function EyeRemote({ eye, root, screenKey }: {
     <div className="eye-remote remote-bar">
       <div><strong>Eye remote</strong><span role="status">{status}</span></div>
       <div className="remote-selection">Selected: <strong>{selectedLabel}</strong></div>
-      {profile && <div className="remote-feedback" aria-label="Detected eye direction">
-        {DIRECTIONS.map((d) => <span key={d} className={detected === d ? 'active' : ''} title={d}>{SYMBOLS[d]}</span>)}
-        <small>Eye movement {strength}%</small>
-      </div>}
+      <div className="remote-guide">
+        <div className="remote-pad" role="group" aria-label="Move the highlight">
+          {GUIDE.map(({ direction, label }) => (
+            <button
+              key={direction}
+              type="button"
+              className={`remote-pad-btn is-${direction} ${profile && detected === direction ? 'is-active' : ''}`}
+              onClick={() => navigateRef.current(direction)}
+            >
+              {label}
+            </button>
+          ))}
+          <span className={`remote-pad-center ${profile && detected === 'center' ? 'is-active' : ''}`} aria-hidden="true">
+            {SYMBOLS.center}
+          </span>
+        </div>
+        {profile && <small>Eye movement {strength}%</small>}
+      </div>
       {profile && <button type="button" className="home-btn" onClick={() => setPaused((v) => !v)}>{paused ? 'Resume' : 'Pause'}</button>}
       <p>
         {profile

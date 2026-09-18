@@ -1,5 +1,4 @@
 import { useState } from 'react'
-import AimGame from './components/AimGame'
 import CalibrationFlow from './components/CalibrationFlow'
 import Home, { type Destination } from './components/Home'
 import { Privacy, Terms } from './components/Legal'
@@ -17,7 +16,6 @@ function Shell() {
 
   if (view === 'calibrate') return <CalibrationFlow onDone={goHome} />
   if (view === 'board') return <NeedsBoard onExit={goHome} onRecalibrate={recalibrate} />
-  if (view === 'game') return <AimGame onExit={goHome} onRecalibrate={recalibrate} />
   if (view === 'privacy') return <Privacy onExit={goHome} />
   if (view === 'terms') return <Terms onExit={goHome} />
   return <Home onSelect={setView} />

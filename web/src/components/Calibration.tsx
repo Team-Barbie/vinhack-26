@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type MutableRefObject } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { EyeTracker } from '../hooks/useEyeTracker'
 import {
   DIRECTION_TARGETS,
@@ -7,7 +7,7 @@ import {
   type Direction,
   type RemoteProfile,
 } from '../lib/eyeRemote'
-import './AimGame.css'
+import './Panel.css'
 import './CalibrationFlow.css'
 
 // Timing and noise gates are prnvh's original eye-remote setup values.
@@ -16,59 +16,12 @@ const SAMPLES_PER_STEP = 24
 const MAX_NOISE = 0.018
 const CLOSED_LID = 0.55
 
-export type Point = { x: number; y: number }
-
-export function useCursor(eye: EyeTracker, mode: 'gaze' | 'mouse'): MutableRefObject<Point | null> {
-  const cursorRef = useRef<Point | null>(null)
-
-  useEffect(() => {
-    cursorRef.current = null
-    if (mode === 'mouse') {
-      const move = (e: PointerEvent) => {
-        cursorRef.current = { x: e.clientX, y: e.clientY }
-      }
-      window.addEventListener('pointermove', move)
-      return () => window.removeEventListener('pointermove', move)
-    }
-    let raf = 0
-    const tick = () => {
-      cursorRef.current = eye.snapshotRef.current.screen
-      raf = requestAnimationFrame(tick)
-    }
-    tick()
-    return () => cancelAnimationFrame(raf)
-  }, [eye.snapshotRef, mode])
-
-  return cursorRef
-}
-
-export function Crosshair({ cursorRef, dimmed }: { cursorRef: MutableRefObject<Point | null>; dimmed: boolean }) {
-  const el = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    let raf = 0
-    const tick = () => {
-      const node = el.current
-      const c = cursorRef.current
-      if (node) {
-        node.style.opacity = c ? '' : '0'
-        if (c) node.style.transform = `translate(${c.x}px, ${c.y}px)`
-      }
-      raf = requestAnimationFrame(tick)
-    }
-    tick()
-    return () => cancelAnimationFrame(raf)
-  }, [cursorRef])
-
-  return <div ref={el} className={`crosshair ${dimmed ? 'is-dimmed' : ''}`} aria-hidden="true" />
-}
-
 export function FaceChip({ eye }: { eye: EyeTracker }) {
-  if (eye.status === 'loading') return <span className="aim-chip">Loading eye tracker…</span>
-  if (eye.status === 'error') return <span className="aim-chip is-bad">Tracker error</span>
+  if (eye.status === 'loading') return <span className="status-chip">Loading eye tracker…</span>
+  if (eye.status === 'error') return <span className="status-chip is-bad">Tracker error</span>
   return (
-    <span className={`aim-chip ${eye.faceFound ? 'is-good' : 'is-bad'}`}>
-      <span className="aim-chip-dot" />
+    <span className={`status-chip ${eye.faceFound ? 'is-good' : 'is-bad'}`}>
+      <span className="status-chip-dot" />
       {eye.faceFound ? 'Face found' : 'Face not found'}
     </span>
   )
@@ -253,7 +206,7 @@ export function DirectionCalibration({
   return (
     <div className={`direction-calibration at-${direction}`} role="dialog" aria-modal="true" aria-label="Calibrate your eyes">
       <div className="direction-copy">
-        <span className="aim-eyebrow">
+        <span className="panel-eyebrow">
           Step {Math.min(step + 1, STEPS.length)} of {STEPS.length}
         </span>
         <strong>{isLast ? 'Back to the middle' : `Look ${SPOKEN[direction]}`}</strong>
@@ -261,7 +214,7 @@ export function DirectionCalibration({
         <progress value={progress} max={1} />
         <div className="direction-copy-row">
           <FaceChip eye={eye} />
-          <button type="button" className="aim-btn is-ghost" onClick={onCancel}>
+          <button type="button" className="panel-btn is-ghost" onClick={onCancel}>
             Cancel
           </button>
         </div>
