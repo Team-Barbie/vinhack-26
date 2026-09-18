@@ -115,7 +115,7 @@ export default function NeedsBoard({ onExit, onRecalibrate }: { onExit: () => vo
   const { title, tiles } = SCREENS[screen]
 
   return (
-    <div ref={boardRef} className={`needs-board screen-${screen} ${screen !== 'gaze' ? 'has-eye-remote' : ''}`}>
+    <div ref={boardRef} className={`needs-board screen-${screen} has-eye-remote`}>
       {pager && <div className="pager-banner" role="status">{pager}</div>}
       <div className="board-nav">
         <button type="button" className="home-btn" onClick={onExit}>
@@ -163,7 +163,7 @@ export default function NeedsBoard({ onExit, onRecalibrate }: { onExit: () => vo
         </button>
       </div>
 
-      {screen !== 'gaze' && <EyeRemote eye={eye} root={boardRef} screenKey={screen} />}
+      <EyeRemote eye={eye} root={boardRef} screenKey={screen} />
       {screen !== 'gaze' && (
         <div className="quick-answer">
           <span className="quick-answer-label">Answer a question</span>
@@ -187,7 +187,7 @@ export default function NeedsBoard({ onExit, onRecalibrate }: { onExit: () => vo
       )}
 
       {screen === 'gaze' ? (
-        <GazePhraseBoard eye={eye} />
+        <GazePhraseBoard />
       ) : (
         <div className="speech-status" role="status" aria-live="polite">
           {spokenMessage ? `Said: "${spokenMessage}"` : 'Tap a card, or look at an arrow.'}

@@ -33,6 +33,11 @@ export default function EyeRemote({ eye, root, screenKey }: {
     let cooldown = 0
     const repeat = new RemoteRepeater(420, 950)
     const blink = new RemoteBlink()
+    // Entering Phrases: drop the old highlight so it refocuses on the phrase panels.
+    if (screenKey === 'gaze' && selected.current) {
+      selected.current.classList.remove('remote-focused')
+      selected.current = null
+    }
 
     const buttons = () => Array.from(root.current?.querySelectorAll<HTMLButtonElement>('button:not(:disabled)') ?? [])
       .filter((b) => !b.closest('.eye-remote') && b.getBoundingClientRect().width > 0)
@@ -46,7 +51,9 @@ export default function EyeRemote({ eye, root, screenKey }: {
     const navigate = (direction: Direction, now: number) => {
       const controls = buttons()
       if (!selected.current || !controls.includes(selected.current)) {
-        const initial = controls.find((b) => b.classList.contains('need-tile')) ?? controls[0]
+        const initial = screenKey === 'gaze'
+          ? controls.find((b) => b.dataset.gazeControl === 'true') ?? controls[0]
+          : controls.find((b) => b.classList.contains('need-tile')) ?? controls[0]
         if (initial) mark(initial, now, Boolean(profile))
         return
       }
