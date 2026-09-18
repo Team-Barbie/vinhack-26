@@ -431,10 +431,22 @@
   color: var(--accent-ink);
 }
 
+.emoji {
+  display: inline-block;
+  width: 1em;
+  height: 1em;
+  object-fit: contain;
+  /* Black and white: the Apple artwork is drawn without colour. */
+  filter: grayscale(1) contrast(1.12);
+}
+
+.emoji-native {
+  line-height: 1;
+}
+
 .need-icon {
   font-size: 68px;
   line-height: 1;
-  filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.5));
 }
 
 .need-label {

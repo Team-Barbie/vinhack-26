@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useEye } from '../hooks/EyeTrackerProvider'
 import GazePhraseBoard from './GazePhraseBoard'
+import Emoji from './Emoji'
 import EyeRemote from './EyeRemote'
 import './NeedsBoard.css'
 
@@ -255,7 +256,7 @@ export default function NeedsBoard({ onExit, onRecalibrate }: { onExit: () => vo
                 className={`need-tile ${spokenTile === tile.id ? 'spoken' : ''}`}
                 onClick={() => activateTile(tile)}
               >
-                <span className="need-icon">{tile.icon}</span>
+                <Emoji char={tile.icon} className="need-icon" />
                 <span className="need-label">{tile.label}</span>
               </button>
             ))}
