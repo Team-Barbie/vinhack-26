@@ -5,7 +5,7 @@ import { Calibration, FaceChip } from './AimGame'
 import './GazePhraseBoard.css'
 
 type GazeZone = 'left' | 'right' | 'back'
-type GazePhase = 'setup' | 'calibrating' | 'selecting'
+type GazePhase = 'setup' | 'calibrating' | 'review' | 'selecting'
 type InputMode = 'gaze' | 'buttons'
 
 const DWELL_MS = 1100
@@ -74,6 +74,7 @@ export default function GazePhraseBoard() {
   const [activeZone, setActiveZone] = useState<GazeZone | null>(null)
   const [progress, setProgress] = useState(0)
   const [lastSpoken, setLastSpoken] = useState('')
+  const [calibrationError, setCalibrationError] = useState(0)
   const [awaitingNeutral, setAwaitingNeutral] = useState(false)
   const [gazePoint, setGazePoint] = useState<{ x: number; y: number } | null>(null)
   const dwellRef = useRef<{ zone: GazeZone | null; startedAt: number }>({ zone: null, startedAt: 0 })
@@ -123,8 +124,9 @@ export default function GazePhraseBoard() {
         return
       }
       setCalibration(model)
+      setCalibrationError(model.error)
       setInputMode('gaze')
-      setPhase('selecting')
+      setPhase('review')
     },
     [setCalibration],
   )
@@ -143,6 +145,18 @@ export default function GazePhraseBoard() {
     },
     [chooseSide, goBack],
   )
+
+  useEffect(() => {
+    if (phase !== 'review') return
+    let raf = 0
+    const updatePreview = () => {
+      const frame = snapshotRef.current
+      setGazePoint(frame.faceFound ? frame.screen : null)
+      raf = requestAnimationFrame(updatePreview)
+    }
+    raf = requestAnimationFrame(updatePreview)
+    return () => cancelAnimationFrame(raf)
+  }, [phase, snapshotRef])
 
   useEffect(() => {
     if (phase !== 'selecting' || inputMode !== 'gaze' || !calibrated) return
@@ -217,7 +231,7 @@ export default function GazePhraseBoard() {
   if (phase === 'calibrating') {
     return (
       <section className="gaze-phrase-board" aria-label="Gaze calibration">
-        <video ref={videoRef} className="gaze-camera" muted playsInline aria-hidden="true" />
+        <video ref={videoRef} className="gaze-camera is-calibrating" muted playsInline aria-hidden="true" />
         <Calibration eye={eye} onComplete={finishCalibration} onCancel={() => setPhase('setup')} />
       </section>
     )
@@ -260,6 +274,41 @@ export default function GazePhraseBoard() {
           </div>
           <video ref={videoRef} className="gaze-setup-camera" muted playsInline />
         </div>
+      </section>
+    )
+  }
+
+  if (phase === 'review') {
+    const quality = calibrationError < 0.05 ? 'Good' : calibrationError < 0.1 ? 'Fair' : 'Needs another try'
+    return (
+      <section className="gaze-phrase-board gaze-calibration-review" aria-label="Check gaze calibration">
+        <video ref={videoRef} className="gaze-camera" muted playsInline aria-hidden="true" />
+        {gazePoint && (
+          <span className="gaze-debug-point is-review" style={{ left: gazePoint.x, top: gazePoint.y }} aria-hidden="true" />
+        )}
+        <div className="gaze-review-card">
+          <span className="gaze-setup-eyebrow">Calibration check</span>
+          <h2>Follow the green dot with your eyes.</h2>
+          <p>
+            Look left, right, up, and down. The dot should follow you closely before you use blink selection.
+          </p>
+          <div className="gaze-review-quality">
+            <span>Tracking quality</span>
+            <strong>{quality}</strong>
+          </div>
+          <div className="gaze-setup-actions">
+            <button type="button" className="gaze-setup-primary" onClick={() => setPhase('selecting')}>
+              Use this calibration
+            </button>
+            <button type="button" className="gaze-setup-secondary" onClick={() => setPhase('calibrating')}>
+              Recalibrate
+            </button>
+          </div>
+        </div>
+        <span className="gaze-review-target gaze-review-left">Look left</span>
+        <span className="gaze-review-target gaze-review-right">Look right</span>
+        <span className="gaze-review-target gaze-review-up">Look up</span>
+        <span className="gaze-review-target gaze-review-down">Look down</span>
       </section>
     )
   }

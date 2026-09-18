@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { FaceLandmarker, FilesetResolver } from '@mediapipe/tasks-vision'
+import { FaceLandmarker, FilesetResolver, type NormalizedLandmark } from '@mediapipe/tasks-vision'
 import { BlinkDetector, GazeTracker, mapGaze, type CalibrationModel, type Vec2 } from '../lib/eyeTracking'
 import { OneEuro2D } from '../lib/oneEuro'
 
@@ -25,7 +25,7 @@ async function createLandmarker(): Promise<FaceLandmarker> {
   const options = (delegate: 'GPU' | 'CPU') => ({
     baseOptions: { modelAssetPath: MODEL_URL, delegate },
     runningMode: 'VIDEO' as const,
-    numFaces: 1,
+    numFaces: 3,
     outputFaceBlendshapes: true,
   })
   try {
@@ -41,6 +41,32 @@ function getLandmarker(): Promise<FaceLandmarker> {
     throw err
   })
   return landmarkerPromise
+}
+
+function primaryFaceIndex(faces: readonly NormalizedLandmark[][]): number {
+  let bestIndex = 0
+  let bestScore = -Infinity
+  faces.forEach((landmarks, index) => {
+    if (landmarks.length === 0) return
+    let minX = 1
+    let minY = 1
+    let maxX = 0
+    let maxY = 0
+    for (const point of landmarks) {
+      minX = Math.min(minX, point.x)
+      minY = Math.min(minY, point.y)
+      maxX = Math.max(maxX, point.x)
+      maxY = Math.max(maxY, point.y)
+    }
+    const area = (maxX - minX) * (maxY - minY)
+    const centerDistance = Math.hypot((minX + maxX) / 2 - 0.5, (minY + maxY) / 2 - 0.5)
+    const score = area - centerDistance * 0.08
+    if (score > bestScore) {
+      bestScore = score
+      bestIndex = index
+    }
+  })
+  return bestIndex
 }
 
 function loadStoredModel(): CalibrationModel | null {
@@ -62,11 +88,22 @@ function describeError(err: unknown): string {
 }
 
 export function useEyeTracker() {
-  const videoRef = useRef<HTMLVideoElement>(null)
+  const videoElementRef = useRef<HTMLVideoElement | null>(null)
+  const streamRef = useRef<MediaStream | null>(null)
+  const videoRef = useCallback((node: HTMLVideoElement | null) => {
+    videoElementRef.current = node
+    if (!node || !streamRef.current) return
+    node.srcObject = streamRef.current
+    void node.play().catch(() => {
+      // The startup path reports camera errors; a transient remount can retry
+      // automatically when the next preview element is attached.
+    })
+  }, [])
   const [status, setStatus] = useState<TrackerStatus>('loading')
   const [error, setError] = useState('')
   const [faceFound, setFaceFound] = useState(false)
   const snapshotRef = useRef<GazeSnapshot>({ faceFound: false, eyesClosed: false, gaze: null, screen: null })
+  const landmarksRef = useRef<NormalizedLandmark[] | null>(null)
   const [storedModel] = useState(loadStoredModel)
   const modelRef = useRef<CalibrationModel | null>(storedModel)
   const [calibrated, setCalibrated] = useState(storedModel !== null)
@@ -87,7 +124,8 @@ export function useEyeTracker() {
           audio: false,
         })
         if (cancelled) return
-        const video = videoRef.current
+        streamRef.current = stream
+        const video = videoElementRef.current
         if (!video) return
         video.srcObject = stream
         await video.play()
@@ -96,14 +134,24 @@ export function useEyeTracker() {
         setStatus('ready')
 
         let lastVideoTime = -1
+        let lastVideo: HTMLVideoElement | null = null
         let lastFace = false
         const loop = () => {
           raf = requestAnimationFrame(loop)
+          const video = videoElementRef.current
+          if (!video) return
+          if (video !== lastVideo) {
+            lastVideo = video
+            lastVideoTime = -1
+          }
           if (video.readyState < 2 || video.currentTime === lastVideoTime) return
           lastVideoTime = video.currentTime
 
           const now = performance.now()
-          const frame = tracker.update(landmarker.detectForVideo(video, now))
+          const result = landmarker.detectForVideo(video, now)
+          const faceIndex = primaryFaceIndex(result.faceLandmarks)
+          landmarksRef.current = result.faceLandmarks[faceIndex] ?? null
+          const frame = tracker.update(result, faceIndex)
           if (frame.faceFound !== lastFace) {
             lastFace = frame.faceFound
             setFaceFound(frame.faceFound)
@@ -134,6 +182,8 @@ export function useEyeTracker() {
     return () => {
       cancelled = true
       cancelAnimationFrame(raf)
+      landmarksRef.current = null
+      streamRef.current = null
       stream?.getTracks().forEach((t) => t.stop())
     }
   }, [])
@@ -158,7 +208,7 @@ export function useEyeTracker() {
     }
   }, [])
 
-  return { videoRef, status, error, faceFound, calibrated, snapshotRef, modelRef, setCalibration, onBlink }
+  return { videoRef, status, error, faceFound, calibrated, snapshotRef, landmarksRef, modelRef, setCalibration, onBlink }
 }
 
 export type EyeTracker = ReturnType<typeof useEyeTracker>

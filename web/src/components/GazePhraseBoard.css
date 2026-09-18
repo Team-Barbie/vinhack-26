@@ -14,6 +14,91 @@
   pointer-events: none;
 }
 
+.gaze-camera.is-calibrating {
+  right: 20px;
+  bottom: 20px;
+  z-index: 30;
+  width: 280px;
+  height: auto;
+  aspect-ratio: 16 / 9;
+  border: 1px solid var(--glass-border);
+  border-radius: var(--r-md);
+  background: #000;
+  box-shadow: var(--shadow-float);
+  object-fit: cover;
+  opacity: 1;
+  transform: scaleX(-1);
+}
+
+.gaze-calibration-review {
+  display: grid;
+  min-height: 100svh;
+  place-items: center;
+  padding: 80px 24px;
+}
+
+.gaze-review-card {
+  position: relative;
+  z-index: 2;
+  width: min(600px, 100%);
+  padding: 38px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  background: rgba(15, 15, 15, 0.9);
+  box-shadow: var(--shadow-card);
+  text-align: center;
+}
+
+.gaze-review-card h2 {
+  margin: 14px 0 10px;
+  font-size: clamp(2rem, 4vw, 3rem);
+}
+
+.gaze-review-card p {
+  color: var(--text-dim);
+  line-height: 1.55;
+}
+
+.gaze-review-card .gaze-setup-actions {
+  justify-content: center;
+}
+
+.gaze-review-quality {
+  display: flex;
+  justify-content: space-between;
+  margin: 24px 0;
+  padding: 14px 18px;
+  border: 1px solid var(--glass-border);
+  border-radius: var(--r-md);
+  background: var(--glass-tint);
+}
+
+.gaze-review-quality strong {
+  color: var(--signal);
+}
+
+.gaze-review-target {
+  position: fixed;
+  z-index: 1;
+  color: var(--text-dim);
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.gaze-review-left { left: 30px; top: 50%; }
+.gaze-review-right { right: 30px; top: 50%; }
+.gaze-review-up { left: 50%; top: 26px; }
+.gaze-review-down { bottom: 26px; left: 50%; }
+
+.gaze-debug-point.is-review {
+  z-index: 4;
+  width: 28px;
+  height: 28px;
+  box-shadow: 0 0 0 8px rgba(107, 217, 143, 0.18), 0 0 28px rgba(107, 217, 143, 0.9);
+}
+
 .gaze-debug-point {
   position: fixed;
   z-index: 20;

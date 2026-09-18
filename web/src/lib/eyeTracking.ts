@@ -131,12 +131,12 @@ export class GazeTracker {
     this.ema = null
   }
 
-  update(result: FaceLandmarkerResult | null): GazeFrame {
-    const landmarks = result?.faceLandmarks?.[0]
+  update(result: FaceLandmarkerResult | null, faceIndex = 0): GazeFrame {
+    const landmarks = result?.faceLandmarks?.[faceIndex]
     if (!landmarks) return { faceFound: false, gaze: this.ema, bothClosed: false, eyesOpen: false }
 
     const blends = new Map<string, number>()
-    for (const c of result.faceBlendshapes?.[0]?.categories ?? []) blends.set(c.categoryName, c.score)
+    for (const c of result.faceBlendshapes?.[faceIndex]?.categories ?? []) blends.set(c.categoryName, c.score)
 
     const left = sampleEye(landmarks, blends, LEFT_EYE)
     const right = sampleEye(landmarks, blends, RIGHT_EYE)

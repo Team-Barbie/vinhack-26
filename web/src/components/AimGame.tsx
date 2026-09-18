@@ -96,6 +96,74 @@ export function FaceChip({ eye }: { eye: EyeTracker }) {
   )
 }
 
+const LEFT_EYE_CONTOUR = [33, 7, 163, 144, 145, 153, 154, 155, 133, 173, 157, 158, 159, 160, 161, 246]
+const RIGHT_EYE_CONTOUR = [362, 382, 381, 380, 374, 373, 390, 249, 263, 466, 388, 387, 386, 385, 384, 398]
+const LEFT_IRIS = [468, 469, 470, 471, 472]
+const RIGHT_IRIS = [473, 474, 475, 476, 477]
+
+function EyeLandmarkOverlay({ eye }: { eye: EyeTracker }) {
+  const [landmarkFrame, setLandmarkFrame] = useState<readonly { x: number; y: number }[]>([])
+
+  useEffect(() => {
+    let raf = 0
+    let lastUpdate = 0
+    const update = (now: number) => {
+      const landmarks = eye.landmarksRef.current
+      if (now - lastUpdate >= 80) {
+        lastUpdate = now
+        setLandmarkFrame(
+          landmarks?.map((point) => ({ x: 1 - point.x, y: point.y })) ?? [],
+        )
+      }
+      raf = requestAnimationFrame(update)
+    }
+    raf = requestAnimationFrame(update)
+    return () => cancelAnimationFrame(raf)
+  }, [eye.landmarksRef])
+
+  const points = (indices: readonly number[]) =>
+    indices
+      .map((index) => landmarkFrame[index])
+      .filter((point): point is { x: number; y: number } => Boolean(point))
+      .map((point) => `${point.x},${point.y}`)
+      .join(' ')
+
+  const bounds = (indices: readonly number[]) => {
+    const eyePoints = indices.map((index) => landmarkFrame[index]).filter(Boolean)
+    if (eyePoints.length === 0) return null
+    const xs = eyePoints.map((point) => point.x)
+    const ys = eyePoints.map((point) => point.y)
+    const paddingX = 0.018
+    const paddingY = 0.028
+    const x = Math.max(0, Math.min(...xs) - paddingX)
+    const y = Math.max(0, Math.min(...ys) - paddingY)
+    return {
+      x,
+      y,
+      width: Math.min(1 - x, Math.max(...xs) - Math.min(...xs) + paddingX * 2),
+      height: Math.min(1 - y, Math.max(...ys) - Math.min(...ys) + paddingY * 2),
+    }
+  }
+
+  const leftBounds = bounds(LEFT_EYE_CONTOUR)
+  const rightBounds = bounds(RIGHT_EYE_CONTOUR)
+
+  return (
+    <svg className="eye-landmark-overlay" viewBox="0 0 1 1" preserveAspectRatio="none" aria-hidden="true">
+      {leftBounds && <rect className="eye-lock-box" rx="0.015" {...leftBounds} />}
+      {rightBounds && <rect className="eye-lock-box" rx="0.015" {...rightBounds} />}
+      <polyline className="eye-contour" points={points(LEFT_EYE_CONTOUR)} />
+      <polyline className="eye-contour" points={points(RIGHT_EYE_CONTOUR)} />
+      <polyline className="iris-contour" points={points(LEFT_IRIS)} />
+      <polyline className="iris-contour" points={points(RIGHT_IRIS)} />
+      {[468, 473].map((index) => {
+        const point = landmarkFrame[index]
+        return point ? <circle key={index} className="iris-center" cx={point.x} cy={point.y} r="0.012" /> : null
+      })}
+    </svg>
+  )
+}
+
 function Setup({
   eye,
   onCalibrate,
@@ -159,6 +227,7 @@ export function Calibration({
   const [index, setIndex] = useState(0)
   const [attempt, setAttempt] = useState(0)
   const [collectingKey, setCollectingKey] = useState('')
+  const [framesCollected, setFramesCollected] = useState(0)
   const [warning, setWarning] = useState('')
   const samplesRef = useRef<CalibrationSample[]>([])
   const onCompleteRef = useRef(onComplete)
@@ -184,13 +253,17 @@ export function Calibration({
       const start = performance.now()
       const tick = () => {
         const snap = eye.snapshotRef.current
-        if (snap.faceFound && !snap.eyesClosed && snap.gaze) buffer.push(snap.gaze)
+        if (snap.faceFound && !snap.eyesClosed && snap.gaze) {
+          buffer.push(snap.gaze)
+          if (buffer.length % 5 === 0) setFramesCollected(buffer.length)
+        }
         if (performance.now() - start < COLLECT_MS) {
           raf = requestAnimationFrame(tick)
           return
         }
         if (buffer.length < MIN_SAMPLES) {
           setWarning("Couldn't see your eyes — look at the dot and hold still.")
+          setFramesCollected(0)
           setAttempt((a) => a + 1)
           return
         }
@@ -200,6 +273,7 @@ export function Calibration({
           buffer.reduce((s, g) => s + g[1], 0) / buffer.length,
         ]
         samplesRef.current.push({ gaze: mean, target })
+        setFramesCollected(0)
         setIndex((i) => i + 1)
       }
       raf = requestAnimationFrame(tick)
@@ -227,7 +301,9 @@ export function Calibration({
         <span className="aim-eyebrow">
           Calibrating · {Math.min(index + 1, CALIBRATION_TARGETS.length)} / {CALIBRATION_TARGETS.length}
         </span>
-        <span className="aim-calibration-hint">{warning || 'Look at the dot until it fills in'}</span>
+        <span className="aim-calibration-hint">
+          {warning || (collecting ? `Eyes tracked · ${framesCollected} samples` : 'Look at the dot until it fills in')}
+        </span>
         <FaceChip eye={eye} />
       </div>
       <div
@@ -235,6 +311,10 @@ export function Calibration({
         className={`calib-dot ${collecting ? 'is-collecting' : ''}`}
         style={{ left: `${target[0] * 100}%`, top: `${target[1] * 100}%` }}
       />
+      <EyeLandmarkOverlay eye={eye} />
+      <span className={`eye-lock-label ${eye.faceFound ? 'is-locked' : ''}`}>
+        {eye.faceFound ? 'Eyes locked' : 'Find your eyes'}
+      </span>
       <span className="aim-calibration-escape">Esc to cancel</span>
     </div>
   )
