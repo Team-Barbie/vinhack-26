@@ -42,6 +42,7 @@ export class Game {
   private width = 1
   private height = 1
   private lastNow = 0
+  private lockId = 0
 
   constructor(config: Partial<GameConfig> = {}) {
     this.config = { ...DEFAULTS, ...config }
@@ -59,6 +60,7 @@ export class Game {
     this.lastShot = null
     this.nextId = 1
     this.lastNow = now
+    this.lockId = 0
     for (let i = 0; i < this.config.targetCount; i++) this.spawn(now)
   }
 
@@ -95,8 +97,8 @@ export class Game {
       this.ended = true
       return false
     }
-    const hit = this.targets.find((t) => this.hitsTarget(t, point))
-    this.lastShot = { point, hit: Boolean(hit), at: now }
+    const hit = this.targets.find((t) => this.hitsTarget(t, point, 1.9))
+    this.lastShot = { point: hit ? { x: hit.x, y: hit.y } : point, hit: Boolean(hit), at: now }
     if (hit) {
       this.hits += 1
       this.ttk.push(now - hit.spawnedAt)
@@ -134,6 +136,28 @@ export class Game {
     }
   }
 
+  nudgeToTarget(point: Point): Point {
+    const locked = this.targets.find((t) => t.id === this.lockId)
+    if (locked) {
+      const d = Math.hypot(point.x - locked.x, point.y - locked.y)
+      if (d <= locked.radius * 2.2) {
+        const pull = d <= locked.radius ? 0.62 : 0.28
+        return {
+          x: point.x + (locked.x - point.x) * pull,
+          y: point.y + (locked.y - point.y) * pull,
+        }
+      }
+      this.lockId = 0
+    }
+    const t = this.nearestTarget(point, this.config.radius * 1.2)
+    if (!t) return point
+    this.lockId = t.id
+    return {
+      x: point.x + (t.x - point.x) * 0.38,
+      y: point.y + (t.y - point.y) * 0.38,
+    }
+  }
+
   playArea(): { x: number; y: number; w: number; h: number } {
     const mx = this.width * 0.07
     const my = this.height * 0.08
@@ -154,8 +178,8 @@ export class Game {
     this.height = height
   }
 
-  private hitsTarget(target: Target, point: Point): boolean {
-    return Math.hypot(point.x - target.x, point.y - target.y) <= target.radius
+  private hitsTarget(target: Target, point: Point, scale = 1): boolean {
+    return Math.hypot(point.x - target.x, point.y - target.y) <= target.radius * scale
   }
 
   private spawn(now: number): void {

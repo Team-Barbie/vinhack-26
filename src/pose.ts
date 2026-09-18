@@ -130,6 +130,7 @@ export class PoseCorrector {
   private wy: number[] | null = null
   private distMean = 0.12
   private poseEma: HeadPose | null = null
+  private lastPoseAt: number | null = null
 
   addSample(predicted: Point, target: Point, pose: HeadPose): void {
     this.samples.push({ predicted: { ...predicted }, target: { ...target }, pose: { ...pose } })
@@ -164,7 +165,10 @@ export class PoseCorrector {
 
   apply(predicted: Point, pose: HeadPose | null): Point {
     if (!this.wx || !this.wy || !pose) return predicted
-    const a = 0.22
+    const now = typeof performance !== 'undefined' ? performance.now() : 0
+    const dt = this.lastPoseAt === null ? 0.05 : Math.min(0.2, Math.max(0.008, (now - this.lastPoseAt) / 1000))
+    this.lastPoseAt = now
+    const a = 1 - Math.exp(-dt / 0.28)
     this.poseEma = this.poseEma
       ? {
           yaw: a * pose.yaw + (1 - a) * this.poseEma.yaw,
@@ -176,6 +180,8 @@ export class PoseCorrector {
         }
       : { ...pose }
     const row = poseRow(this.poseEma, this.distMean)
+    row[4] *= 0.35
+    row[5] *= 0.35
     let dx = 0
     let dy = 0
     for (let i = 0; i < this.wx.length; i++) {
@@ -183,8 +189,8 @@ export class PoseCorrector {
       dy += this.wy[i] * row[i]
     }
     return {
-      x: clamp01(predicted.x + clamp(dx, -0.07, 0.07)),
-      y: clamp01(predicted.y + clamp(dy, -0.07, 0.07)),
+      x: clamp01(predicted.x + clamp(dx, -0.035, 0.035)),
+      y: clamp01(predicted.y + clamp(dy, -0.035, 0.035)),
     }
   }
 

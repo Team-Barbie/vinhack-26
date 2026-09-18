@@ -239,8 +239,8 @@ export class FaceTracker {
     const earR = earToBlink(
       eyeAspectRatio(landmarks, LM.rightUpper, LM.rightLower, LM.rightInner, LM.rightOuter, vw, vh),
     )
-    const blinkL = blendScore(categories, 'eyeBlinkLeft') ?? earL
-    const blinkR = blendScore(categories, 'eyeBlinkRight') ?? earR
+    const blinkL = Math.max(blendScore(categories, 'eyeBlinkLeft') ?? 0, earL)
+    const blinkR = Math.max(blendScore(categories, 'eyeBlinkRight') ?? 0, earR)
     const quality = poseQuality(pose, Math.max(blinkL, blinkR), iodOk && Boolean(features?.every(Number.isFinite)))
 
     this.lastFrame = {

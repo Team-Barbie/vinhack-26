@@ -18,11 +18,16 @@ type SerializedEstimator = {
 }
 
 type Knot = { f: number; t: number }
+type LocalKnot = { gx: number; gy: number; dx: number; dy: number }
 
 const EPS = 1e-6
 
 function clamp01(v: number): number {
   return Math.min(1, Math.max(0, v))
+}
+
+function clampShift(v: number): number {
+  return Math.min(0.05, Math.max(-0.05, v))
 }
 
 function median(values: number[]): number {
@@ -202,6 +207,7 @@ export class RidgeGazeEstimator implements GazeEstimator {
   private samples: Sample[] = []
   private weightsX: number[] | null = null
   private yKnots: Knot[] = []
+  private locals: LocalKnot[] = []
   private means: number[] = []
   private stds: number[] = []
   private ready = false
@@ -265,7 +271,7 @@ export class RidgeGazeEstimator implements GazeEstimator {
 
     const X = clusters.map((c) => designX(c.features, this.means, this.stds))
     const yx = clusters.map((c) => c.target.x)
-    this.weightsX = ridgeFit(X, yx, 0.2)
+    this.weightsX = ridgeFit(X, yx, 0.12)
     this.yKnots = verticalKnots(clusters)
     if (this.yKnots.length < 2) {
       throw new Error('Need a fresh calibration with top and bottom dots')
@@ -273,15 +279,55 @@ export class RidgeGazeEstimator implements GazeEstimator {
     if (!monotonicTargets(this.yKnots)) {
       this.yKnots = linearYKnots(clusters)
     }
+    this.locals = clusters.map((c) => {
+      const pred = {
+        x: clamp01(dot(this.weightsX!, designX(c.features, this.means, this.stds))),
+        y: clamp01(interp1d(this.yKnots, gyOf(c.features))),
+      }
+      return {
+        gx: (c.features[0] + c.features[2]) / 2,
+        gy: gyOf(c.features),
+        dx: c.target.x - pred.x,
+        dy: c.target.y - pred.y,
+      }
+    })
     this.ready = true
   }
 
   predict(features: number[]): Point | null {
     if (!this.ready || !this.weightsX || this.yKnots.length < 2) return null
     if (features.length !== this.means.length || !features.every(Number.isFinite)) return null
-    return {
+    const base = {
       x: clamp01(dot(this.weightsX, designX(features, this.means, this.stds))),
       y: clamp01(interp1d(this.yKnots, gyOf(features))),
+    }
+    return this.applyLocal(features, base)
+  }
+
+  private applyLocal(features: number[], base: Point): Point {
+    if (this.locals.length < 4) return base
+    const qgx = (features[0] + features[2]) / 2
+    const qgy = gyOf(features)
+    const ranked = this.locals
+      .map((k) => ({ k, d: Math.hypot(qgx - k.gx, qgy - k.gy) }))
+      .sort((a, b) => a.d - b.d)
+      .slice(0, 4)
+    const dmin = ranked[0].d
+    const bandwidth = 0.016
+    let wsum = 0
+    let dx = 0
+    let dy = 0
+    for (const { k, d } of ranked) {
+      const w = Math.exp(-(d * d) / (2 * bandwidth * bandwidth)) / (d * d + 1e-8)
+      dx += w * k.dx
+      dy += w * k.dy
+      wsum += w
+    }
+    if (wsum <= 0) return base
+    const mix = 0.82 / (1 + (dmin / bandwidth) ** 2)
+    return {
+      x: clamp01(base.x + mix * clampShift(dx / wsum)),
+      y: clamp01(base.y + mix * clampShift(dy / wsum)),
     }
   }
 
@@ -346,6 +392,10 @@ class OneEuroFilter1D {
     this.minCutoff = value
   }
 
+  setBeta(value: number): void {
+    this.beta = value
+  }
+
   filter(x: number, timestamp: number): number {
     if (this.lastTime === null || this.lastX === null) {
       this.lastTime = timestamp
@@ -379,22 +429,32 @@ export class GazeSmoother {
   private lastAt = -Infinity
 
   constructor() {
-    this.x = new OneEuroFilter1D(0.65, 1.4, 1)
-    this.y = new OneEuroFilter1D(0.6, 1.6, 1)
+    this.x = new OneEuroFilter1D(0.16, 0.04, 1)
+    this.y = new OneEuroFilter1D(0.12, 0.03, 1)
   }
 
   setPlayMode(_on: boolean): void {
-    this.x.setMinCutoff(0.65)
-    this.y.setMinCutoff(0.6)
+    /* mode is chosen per-sample from saccade vs fixation */
   }
 
-  update(raw: Point | null, timestamp: number, hold: boolean): Point | null {
+  update(raw: Point | null, timestamp: number, hold: boolean, saccade = false): Point | null {
     if (hold || !raw) return this.last
     if (!Number.isFinite(raw.x) || !Number.isFinite(raw.y) || timestamp <= this.lastAt) return this.last
     if (timestamp - this.lastAt > 280) this.reset()
     this.lastAt = timestamp
-    this.window.push(raw)
-    if (this.window.length > 4) this.window.shift()
+
+    this.x.setMinCutoff(saccade ? 1.1 : 0.14)
+    this.y.setMinCutoff(saccade ? 0.9 : 0.1)
+    this.x.setBeta(saccade ? 0.28 : 0.03)
+    this.y.setBeta(saccade ? 0.22 : 0.02)
+
+    if (saccade) {
+      this.window.push(raw)
+      if (this.window.length > 3) this.window.shift()
+    } else {
+      this.window.push(raw)
+      if (this.window.length > 8) this.window.shift()
+    }
     const med = {
       x: median(this.window.map((p) => p.x)),
       y: median(this.window.map((p) => p.y)),
@@ -405,11 +465,18 @@ export class GazeSmoother {
     }
     if (this.last) {
       const jump = Math.hypot(med.x - this.last.x, med.y - this.last.y)
-      if (jump > 0.14) {
-        const t = Math.min(1, (jump - 0.14) / 0.2)
+      if (saccade && jump > 0.16) {
+        const t = Math.min(1, (jump - 0.16) / 0.22)
         next = {
-          x: next.x + (med.x - next.x) * (0.35 + 0.45 * t),
-          y: next.y + (med.y - next.y) * (0.35 + 0.45 * t),
+          x: next.x + (med.x - next.x) * (0.18 + 0.28 * t),
+          y: next.y + (med.y - next.y) * (0.18 + 0.28 * t),
+        }
+      } else if (!saccade && jump < 0.01) {
+        next = this.last
+      } else if (!saccade && jump < 0.02) {
+        next = {
+          x: this.last.x + (next.x - this.last.x) * 0.22,
+          y: this.last.y + (next.y - this.last.y) * 0.22,
         }
       }
     }

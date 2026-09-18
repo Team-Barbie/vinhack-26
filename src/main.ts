@@ -139,10 +139,11 @@ function refreshGeometry(): void {
   geomMismatch = Boolean(active && calibGeometry && !geometryMatches(calibGeometry, live))
 }
 
-function predictFull(features: number[], pose: TrackerFrame['pose']): Point | null {
+function predictFull(features: number[], pose: TrackerFrame['pose'], lid = 0): Point | null {
   const raw = estimator.predict(features)
   lastRawNorm = raw
   if (!raw) return null
+  if (lid > 0.2) return raw
   return poseCorrector.apply(raw, pose)
 }
 
@@ -313,7 +314,7 @@ btnRetry.addEventListener('click', () => {
 window.addEventListener('keydown', (event) => {
   if (event.code === 'Space') {
     event.preventDefault()
-    if (!event.repeat && screen === 'play' && gazePx && aimUsable && !geomMismatch && performance.now() - lastAimAt < 200) {
+    if (!event.repeat && screen === 'play' && gazePx && !geomMismatch) {
       game.fire(gazePx, performance.now())
     }
   }
@@ -354,39 +355,42 @@ function loop(now: number): void {
   const frame = trackerReady ? tracker.update(now) : emptyFrame(now)
 
   const fresh = frame.timestamp > lastProcessedAt
+  const lid = Math.max(frame.blinkL, frame.blinkR)
   const blinkShot = blink.update(frame)
-  const blinking = blink.isHolding(now)
+  const blinking = blink.isFrozen(now)
+  const faceOk = frame.faceFound || blinking || now - lastAimAt < 400
 
   let warped: Point | null = null
   if (fresh && frame.faceFound && !document.hidden && frame.features && estimator.isReady() && !blinking) {
-    const predicted = predictFull(frame.features, frame.pose)
+    const predicted = predictFull(frame.features, frame.pose, lid)
     lastFeatures = frame.features
     lastCorrectedNorm = predicted
     warped = predicted ? logger.apply(frame.features, predicted) : null
     lastPredictedNorm = warped
     lastAimAt = frame.timestamp
-  } else if (!blinking && lastPredictedNorm && frame.faceFound) {
+  } else if (!blinking && lastPredictedNorm && faceOk) {
     warped = lastPredictedNorm
   }
 
   const filt = filter.update(warped, frame.timestamp, {
     quality: frame.quality,
     blinking,
-    faceFound: frame.faceFound && !document.hidden,
+    faceFound: faceOk && !document.hidden,
   })
 
-  if (!frame.faceFound || document.hidden) {
+  if (document.hidden || (!faceOk && now - lastAimAt > 400)) {
     blink.reset()
     gazePx = null
     lastFeatures = null
     lastPredictedNorm = null
     aimUsable = false
   } else {
-    gazePx = toPixels(filt.point)
-    aimUsable = filt.available && !geomMismatch
+    gazePx = toPixels(filt.point) ?? gazePx
+    if (screen === 'play' && gazePx && !blinking) gazePx = game.nudgeToTarget(gazePx)
+    aimUsable = Boolean(gazePx) && !geomMismatch
   }
 
-  if (fresh && aimUsable) blink.pushGaze(gazePx, frame.timestamp)
+  if (fresh && gazePx && !blinking) blink.pushGaze(gazePx, frame.timestamp)
   lastProcessedAt = frame.timestamp
 
   const predictForSession = (features: number[]) => predictFull(features, frame.pose)
@@ -451,7 +455,10 @@ function loop(now: number): void {
   } else if (screen === 'check') {
     drawCheck(ctx, width, height, gazePx, frame.faceFound, logger.entries(), meanErrorPx)
   } else if (screen === 'play') {
-    if (blinkShot && fireMode === 'blink' && !document.hidden && aimUsable) game.fire(blinkShot, now)
+    if (blinkShot && fireMode === 'blink' && !document.hidden && !geomMismatch) {
+      const shot = game.nudgeToTarget(blinkShot)
+      game.fire(shot, now)
+    }
     game.resize(width, height)
     game.update(now, aimUsable ? gazePx : null)
     drawGame(ctx, width, height, game, gazePx, now, frame.faceFound, logger.count())

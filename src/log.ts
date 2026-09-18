@@ -1,9 +1,9 @@
 import type { Point } from './types'
 
-const STORAGE_KEY = 'gaze-shot-look-log-v5'
+const STORAGE_KEY = 'gaze-shot-look-log-v6'
 const MAX_LOGS = 48
 const FEAT_NEAR = 0.018
-const MAX_SHIFT = 0.08
+const MAX_SHIFT = 0.05
 const DISAGREE = 0.22
 
 export type LookLog = {

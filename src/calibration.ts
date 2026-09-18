@@ -122,7 +122,7 @@ export function diagnoseHeadPoints(): HeadAnchor[] {
 }
 
 export function targetRadiusFromError(meanErrorPx: number): number {
-  return Math.min(140, Math.max(60, 1.2 * meanErrorPx))
+  return Math.min(170, Math.max(88, 1.45 * meanErrorPx))
 }
 
 export function saveCalibration(data: SavedCalibration): void {
