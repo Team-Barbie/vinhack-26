@@ -240,7 +240,7 @@ export default function NeedsBoard({ onExit, onRecalibrate }: { onExit: () => vo
         <GazePhraseBoard eye={eye} />
       ) : (
         <div className="speech-status" role="status" aria-live="polite">
-          {spokenMessage ? `Said: "${spokenMessage}"` : 'Tap a card, or use the eye remote above.'}
+          {spokenMessage ? `Said: "${spokenMessage}"` : 'Tap a card, or use the eye controls at the screen edges.'}
         </div>
       )}
 
