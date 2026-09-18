@@ -1,32 +1,27 @@
-# React + TypeScript + Vite
+# VisionLoop web app
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+The React frontend for VisionLoop includes the Patient Board, Gaze Phrases, and Aim Trainer.
 
-Currently, two official plugins are available:
+## Run
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+Use Node.js 22.12 or newer and npm. From this directory:
 
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the Oxlint configuration
-
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
-
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
+```bash
+npm install
+npm run dev
 ```
 
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+Open the URL printed by Vite. Gaze input requires a webcam and camera permission on localhost or HTTPS. Internet access is needed for the MediaPipe runtime and model. No API key or environment file is required by the current app.
+
+## Commands
+
+| Command | Purpose |
+| --- | --- |
+| `npm run dev` | Start the development server |
+| `npm run build` | Type-check and create `dist/` |
+| `npm run preview` | Preview a completed production build |
+| `npm run lint` | Run Oxlint |
+
+This app has no configured test script. The repository-root tests cover the separate standalone trainer.
+
+See the [main VisionLoop README](../README.md) for features, calibration, controls, data handling, troubleshooting, and instructions for the standalone trainer and Python demo.

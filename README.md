@@ -1,35 +1,174 @@
-# Gaze Shot
+# VisionLoop
 
-Browser aim trainer controlled with your eyes. A webcam plus [MediaPipe Face Landmarker](https://ai.google.dev/edge/mediapipe/solutions/vision/face_landmarker) estimates where you look; a blink shoots.
+**Communicate with your eyes.**
 
-Nothing is uploaded. Video stays in the browser.
+VisionLoop is a webcam-based communication prototype with a patient needs board, spoken phrases, and an eye-controlled aim trainer. MediaPipe face and iris tracking turns gaze into on-screen selections without dedicated eye-tracking hardware.
 
-## Run
+## What's in this repository?
+
+| Application | Location | Purpose |
+| --- | --- | --- |
+| **VisionLoop** | `web/` | React app with Patient Board, Gaze Phrases, and Aim Trainer |
+| **Standalone trainer** | Root (`src/`) | Standalone aim trainer with calibration, diagnostics, and blink or dwell firing |
+| **Python tracker** | `main.py`, `eye_tracking/` | Desktop webcam demo with tracking overlays |
+
+## Quick start: VisionLoop
+
+You need Node.js **22.12 or newer**, npm, a webcam, and a browser with camera access. An internet connection is needed to load the MediaPipe runtime and model.
+
+Clone the repository, then start the web app:
 
 ```bash
+git clone https://github.com/Team-Barbie/vinhack-26.git
+cd vinhack-26
+cd web
 npm install
 npm run dev
 ```
 
-Open the local URL (camera access requires `localhost` or HTTPS). Allow the webcam when prompted.
+Open the local URL printed by Vite. Allow camera access when using gaze features. Browser camera access requires `localhost` or HTTPS.
 
-## How to play
+If you already have the repository, run only `cd web`, `npm install`, and `npm run dev` from its root. No API key or environment file is required by the current app.
 
-1. Sit about an arm’s length from the screen with the camera at eye level.
-2. Use even lighting. Avoid a bright window behind you.
-3. Keep your head still and look with your eyes, not by turning your face.
-4. Stare at each glowing calibration dot until it fills (12 dots), then follow 4 accuracy-check dots. Missing tracking pauses collection; C restarts calibration.
-5. A crosshair should start following your eyes. If it is off, **click where you are actually looking**. Press Enter to play.
-6. Look at a target and **blink both eyes** to shoot. Spacebar also fires. Press `R` to restart a round, `C` to recalibrate.
+### Patient Board
 
-If blinks are unreliable (very dry eyes, some glasses), switch **Fire mode** to **Dwell** on the start screen and hold your gaze on a target.
+Choose **Patient Board** on the home screen to access:
 
-Targets adapt to the measured validation error. Accuracy depends on your camera, lighting, and head position; recalibrate if you shift in your chair. Blink shots fire on reopening, while dwell progress stops whenever tracking or eye openness is unreliable.
+- Essential requests such as water, food, assistance, and repositioning.
+- Comfort and urgent request categories.
+- Yes/no responses and one-tap Quick Talk phrases.
+- A sentence builder that speaks selected words.
+- **Gaze Phrases**, which narrows a phrase list using left/right gaze selections. Calibrate, look toward the group containing your phrase, and blink or dwell for about 1.1 seconds to select. Return your gaze to the center between selections. Look toward the upper screen area and blink or dwell to go back. Once a single phrase is selected, it is spoken and the list resets. A button-based test mode is also available.
 
-Tracking updates use unique camera frames and an adaptive smoother. Old calibrations are intentionally ignored after changes to the eye-coordinate convention; perform a fresh calibration after updating. Run `npm test` for synthetic tracking and gameplay regression checks.
+The regular request tiles and sentence builder use buttons; gaze selection is provided through the dedicated Gaze Phrases view.
 
-## Stack
+The board uses bundled audio clips and browser speech synthesis. Labels such as “Call Nurse” play a message; they do not connect to a hospital dispatch service. VisionLoop is a communication prototype, not a replacement for a hospital's certified nurse-call or emergency system.
 
-- Vite + TypeScript
-- `@mediapipe/tasks-vision` (Apache-2.0) for 478 face/iris landmarks, blink blendshapes, and head pose
-- Per-user interpolation maps iris-in-eye position to screen coordinates
+### Aim Trainer
+
+Choose **Aim Trainer**, allow the camera, and follow the calibration prompts. Review the calibration quality, then aim with your eyes and blink to shoot. The trainer also offers mouse input and reuse of a saved calibration.
+
+| Control | Action in the web Aim Trainer |
+| --- | --- |
+| Blink | Shoot in gaze mode |
+| Click or Space | Shoot during a round |
+| `M` | Switch mouse/gaze input; gaze requires calibration |
+| Escape | Cancel calibration or quit a round |
+
+Results include score, hits, misses, best combo, and average reaction time. Dwell firing is available in the standalone trainer below; the web Aim Trainer uses blink, click, or Space.
+
+For consistent tracking, use even lighting and position the camera near eye level. Keep your head steady during calibration and recalibrate after changing position.
+
+## Standalone VisionLoop trainer
+
+Run these commands from the **repository root**, rather than `web/`:
+
+```bash
+npm ci
+npm run dev
+```
+
+Open `http://localhost:5173`. Follow the calibration and accuracy-check prompts, then start a round. Choose **Blink** or **Dwell** on the start screen. If the crosshair is offset, click where you are actually looking to record a correction.
+
+| Control | Action |
+| --- | --- |
+| Blink both eyes | Fire in Blink mode, on reopening |
+| Hold gaze on a target | Fire in Dwell mode |
+| Space | Fire during a round |
+| Enter | Start from the gaze-check or diagnostic-results screen |
+| `R` | Restart during play or from results |
+| `C` | Recalibrate once tracking is running |
+| `D` | Run diagnostics from the check, ready, or results screen |
+
+Target size adapts to measured calibration error. Follow recalibration prompts after resizing or changing your setup.
+
+## Python webcam demo
+
+The Python demo runs separately from the browser apps and requires a Python installation compatible with the packages in `requirements.txt`. From the repository root, create a virtual environment:
+
+```bash
+python -m venv .venv
+```
+
+Activate it in PowerShell:
+
+```powershell
+.\.venv\Scripts\Activate.ps1
+```
+
+Or on macOS/Linux:
+
+```bash
+source .venv/bin/activate
+```
+
+Then install dependencies and run:
+
+```bash
+python -m pip install -r requirements.txt
+python main.py
+```
+
+The Face Landmarker model downloads into `models/` on first launch. Dependencies are MediaPipe, OpenCV, and NumPy.
+
+| Key | Action |
+| --- | --- |
+| `C` | Start or cancel calibration |
+| Space | Capture a calibration sample |
+| `R` | Reset tracking and the gaze trail |
+| `M` | Toggle the face mesh |
+| `Q` or Escape | Quit |
+
+To choose another camera or adjust capture settings:
+
+```bash
+python main.py --camera 1 --width 1280 --height 720 --no-mirror
+```
+
+## Development
+
+The root and `web/` apps have separate npm dependencies. Install dependencies in each directory you intend to use.
+
+| Command | Repository root | `web/` |
+| --- | --- | --- |
+| `npm run dev` | Start standalone trainer | Start VisionLoop |
+| `npm run build` | Type-check and build | Type-check and build |
+| `npm run preview` | Preview the production build | Preview the production build |
+| `npm test` | Synthetic tracking and gameplay regression checks | Not configured |
+| `npm run lint` | Not configured | Run Oxlint |
+
+Build output goes into `dist/` inside the corresponding app directory. Run `npm run build` before `npm run preview`. When running both development servers, use the URL each prints; the standalone trainer reserves port 5173.
+
+The root tests exercise the standalone tracking and gameplay modules with synthetic inputs. They do not validate live webcam accuracy or the React app.
+
+### Technology
+
+- **Web app:** React, TypeScript, Vite, MediaPipe Tasks Vision, and browser speech synthesis.
+- **Standalone trainer:** TypeScript, Vite, canvas rendering, and MediaPipe Tasks Vision.
+- **Desktop demo:** Python, MediaPipe, OpenCV, and NumPy.
+
+```text
+web/
+  src/components/      Home, Patient Board, Gaze Phrases, and Aim Trainer
+  src/hooks/           React eye-tracking integration
+  src/lib/             Tracking and smoothing utilities
+  public/audio/        Spoken request recordings
+src/                   Standalone tracking, calibration, and gameplay
+public/models/         Bundled browser Face Landmarker model
+tests/                 Synthetic tracking and gameplay regression tests
+eye_tracking/          Python tracking, calibration, and overlays
+models/                Python model download location
+main.py                Python entry point
+```
+
+## Data and troubleshooting
+
+Camera frames are processed on the device. The web app downloads the MediaPipe runtime from jsDelivr and its model from Google-hosted storage. The standalone trainer tries its bundled model first, with a remote fallback, and loads its runtime from a CDN. The browser apps are therefore not configured for fully offline startup.
+
+Saved calibration uses browser local storage. The standalone trainer also stores correction samples locally; in development, it sends diagnostic/correction data to its Vite server, which writes `gaze-look-log.json`. Speech synthesis uses voices provided by the browser or operating system; their availability and network behavior depend on the environment.
+
+- **Camera unavailable:** allow camera permission and close other apps using the webcam. For Python, try another `--camera` index.
+- **Model fails to load:** check access to the external MediaPipe asset hosts and retry.
+- **Gaze is inaccurate:** improve lighting, keep your face visible, and recalibrate in your current position.
+- **No speech:** check audio output and browser speech support. Playback depends on the selected phrase and playback mechanism.
+- **Port 5173 is occupied:** stop the other server or choose another port with `npm run dev -- --port 5174`.
