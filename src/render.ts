@@ -82,11 +82,17 @@ export function drawCalibration(
   ctx.fillStyle = 'rgba(244,251,255,0.86)'
   ctx.font = '500 22px system-ui, sans-serif'
   ctx.textAlign = 'center'
-  const label = progress.kind === 'calibrate' ? 'Look at the glowing dot — eyes only, head still' : 'Keep looking — measuring accuracy'
+  const label =
+    progress.kind === 'calibrate' ? 'Look at the glowing dot — eyes only, head still'
+    : progress.kind === 'calibrate-head' ? 'Same dots, now move your head a little'
+    : progress.kind === 'diagnose-head' ? 'Head-movement accuracy trial'
+    : progress.kind === 'diagnose' ? 'Accuracy test — unseen positions'
+    : 'Keep looking — measuring accuracy'
   ctx.fillText(label, width / 2, 48)
   ctx.font = '16px system-ui, sans-serif'
   ctx.fillStyle = 'rgba(244,251,255,0.55)'
   ctx.fillText(`${Math.min(progress.index + 1, progress.total)} / ${progress.total}`, width / 2, 76)
+  if (progress.hint) ctx.fillText(progress.hint, width / 2, height - 28)
 
   if (!faceFound) drawFaceLost(ctx, width, height)
 }
@@ -183,6 +189,7 @@ export function drawCheck(
   gaze: Point | null,
   faceFound: boolean,
   logs: LookLog[] = [],
+  meanErrorPx = 0,
 ): void {
   drawBackdrop(ctx, w, h)
   const { w: width, h: height } = css(w, h)
@@ -212,7 +219,8 @@ export function drawCheck(
   ctx.fillText('Look around the screen', width / 2, 48)
   ctx.font = '16px system-ui, sans-serif'
   ctx.fillStyle = 'rgba(244,251,255,0.6)'
-  ctx.fillText('Click where you are actually looking. Orange marks are look logs. Enter starts.', width / 2, 76)
+  ctx.fillText('Click where you are actually looking. Enter starts · D accuracy test.', width / 2, 76)
+  ctx.fillText(`Measured accuracy: ${Math.round(meanErrorPx)} px · C recalibrates`, width / 2, 126)
   if (logs.length > 0) {
     ctx.fillStyle = '#3ee0c5'
     ctx.fillText(`${logs.length} look log${logs.length === 1 ? '' : 's'} saved`, width / 2, 102)
@@ -226,6 +234,48 @@ export function drawCheck(
     })
   }
   if (!faceFound) drawFaceLost(ctx, width, height)
+}
+
+export function drawGeomWarn(ctx: CanvasRenderingContext2D, w: number, _h: number): void {
+  ctx.fillStyle = 'rgba(255, 107, 61, 0.92)'
+  ctx.fillRect(0, 0, w, 56)
+  ctx.fillStyle = '#0b1018'
+  ctx.font = '600 16px system-ui, sans-serif'
+  ctx.textAlign = 'center'
+  ctx.fillText('Window, zoom, or display changed — stretching the old map would be wrong. Press C to recalibrate.', w / 2, 36)
+}
+
+export function drawDiagnoseResults(
+  ctx: CanvasRenderingContext2D,
+  w: number,
+  h: number,
+  metrics: {
+    positionErrorPx: number
+    jitterNorm: number
+    delayMs: number
+    driftNorm: number
+    unseenErrorPx: number
+    headMoveErrorPx: number
+    samples: number
+  },
+): void {
+  drawBackdrop(ctx, w, h)
+  ctx.textAlign = 'center'
+  ctx.fillStyle = '#f4fbff'
+  ctx.font = '600 28px system-ui, sans-serif'
+  ctx.fillText('Accuracy (not smoothness)', w / 2, 64)
+  ctx.font = '16px system-ui, sans-serif'
+  ctx.fillStyle = 'rgba(244,251,255,0.7)'
+  const lines = [
+    `Position error: ${Math.round(metrics.positionErrorPx)} px`,
+    `Unseen points: ${Math.round(metrics.unseenErrorPx)} px`,
+    `Head-movement trials: ${Math.round(metrics.headMoveErrorPx)} px`,
+    `Stationary jitter: ${(metrics.jitterNorm * 100).toFixed(2)}% of screen`,
+    `Movement delay: ${Math.round(metrics.delayMs)} ms`,
+    `Drift during fixation: ${(metrics.driftNorm * 100).toFixed(2)}% of screen`,
+    `${metrics.samples} samples · Enter to play · C recalibrates`,
+  ]
+  lines.forEach((line, i) => ctx.fillText(line, w / 2, 120 + i * 32))
 }
 
 function drawCrosshair(ctx: CanvasRenderingContext2D, x: number, y: number, locked: boolean): void {

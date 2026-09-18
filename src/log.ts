@@ -1,6 +1,6 @@
 import type { Point } from './types'
 
-const STORAGE_KEY = 'gaze-shot-look-log-v4'
+const STORAGE_KEY = 'gaze-shot-look-log-v5'
 const MAX_LOGS = 48
 const FEAT_NEAR = 0.018
 const MAX_SHIFT = 0.08
@@ -35,6 +35,7 @@ function featDist(a: number[], b: number[]): number {
 }
 
 function dump(logs: LookLog[], extra?: unknown): void {
+  if (!import.meta.env?.DEV) return
   const summary = logs.map((l) => ({
     predicted: [round(l.predicted.x), round(l.predicted.y)],
     actual: [round(l.actual.x), round(l.actual.y)],
@@ -112,9 +113,12 @@ export class LookLogger {
     let wsum = 0
     let dx = 0
     let dy = 0
+    let influence = 0
     for (const log of nearby) {
       const d = featDist(features, log.features)
-      const w = 1 / (d * d + 1e-6)
+      const taper = (1 - (d / FEAT_NEAR) ** 2) ** 2
+      const w = taper / (d * d + 1e-6)
+      influence = Math.max(influence, taper)
       dx += w * (log.actual.x - log.predicted.x)
       dy += w * (log.actual.y - log.predicted.y)
       wsum += w
@@ -122,8 +126,8 @@ export class LookLogger {
     if (wsum <= 0) return predicted
 
     return {
-      x: clamp01(predicted.x + clamp(dx / wsum, -MAX_SHIFT, MAX_SHIFT)),
-      y: clamp01(predicted.y + clamp(dy / wsum, -MAX_SHIFT, MAX_SHIFT)),
+      x: clamp01(predicted.x + influence * clamp(dx / wsum, -MAX_SHIFT, MAX_SHIFT)),
+      y: clamp01(predicted.y + influence * clamp(dy / wsum, -MAX_SHIFT, MAX_SHIFT)),
     }
   }
 

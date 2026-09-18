@@ -1,7 +1,7 @@
 import type { Point } from './types'
 
 export type GazeEstimator = {
-  addSample(features: number[], screenXY: Point): void
+  addSample(features: number[], screenXY: Point, singleton?: boolean): void
   fit(): void
   predict(features: number[]): Point | null
   isReady(): boolean
@@ -13,7 +13,7 @@ type Sample = { features: number[]; target: Point; singleton?: boolean }
 type Cluster = { features: number[]; target: Point }
 
 type SerializedEstimator = {
-  version: 6
+  version: 7
   samples: Sample[]
 }
 
@@ -278,7 +278,7 @@ export class RidgeGazeEstimator implements GazeEstimator {
 
   predict(features: number[]): Point | null {
     if (!this.ready || !this.weightsX || this.yKnots.length < 2) return null
-    if (features.length !== this.means.length) return null
+    if (features.length !== this.means.length || !features.every(Number.isFinite)) return null
     return {
       x: clamp01(dot(this.weightsX, designX(features, this.means, this.stds))),
       y: clamp01(interp1d(this.yKnots, gyOf(features))),
@@ -286,13 +286,16 @@ export class RidgeGazeEstimator implements GazeEstimator {
   }
 
   toJSON(): string {
-    const payload: SerializedEstimator = { version: 6, samples: this.samples }
+    const payload: SerializedEstimator = { version: 7, samples: this.samples }
     return JSON.stringify(payload)
   }
 
   static fromJSON(raw: string): RidgeGazeEstimator {
     const data = JSON.parse(raw) as SerializedEstimator
-    if (data.version !== 6 || !Array.isArray(data.samples) || data.samples.length < 12) {
+    if (data.version !== 7 || !Array.isArray(data.samples) || data.samples.length < 12 ||
+        data.samples.some((s) => !Array.isArray(s.features) || s.features.length !== 4 ||
+          !s.features.every(Number.isFinite) || !s.target ||
+          !Number.isFinite(s.target.x) || !Number.isFinite(s.target.y))) {
       throw new Error('Need a fresh calibration')
     }
     const est = new RidgeGazeEstimator()
@@ -373,31 +376,42 @@ export class GazeSmoother {
   private y: OneEuroFilter1D
   private window: Point[] = []
   private last: Point | null = null
+  private lastAt = -Infinity
 
   constructor() {
-    this.x = new OneEuroFilter1D(0.52, 0.7, 1)
-    this.y = new OneEuroFilter1D(0.48, 0.85, 1)
+    this.x = new OneEuroFilter1D(0.65, 1.4, 1)
+    this.y = new OneEuroFilter1D(0.6, 1.6, 1)
   }
 
   setPlayMode(_on: boolean): void {
-    this.x.setMinCutoff(0.52)
-    this.y.setMinCutoff(0.48)
+    this.x.setMinCutoff(0.65)
+    this.y.setMinCutoff(0.6)
   }
 
   update(raw: Point | null, timestamp: number, hold: boolean): Point | null {
     if (hold || !raw) return this.last
+    if (!Number.isFinite(raw.x) || !Number.isFinite(raw.y) || timestamp <= this.lastAt) return this.last
+    if (timestamp - this.lastAt > 280) this.reset()
+    this.lastAt = timestamp
     this.window.push(raw)
-    if (this.window.length > 5) this.window.shift()
+    if (this.window.length > 4) this.window.shift()
     const med = {
       x: median(this.window.map((p) => p.x)),
       y: median(this.window.map((p) => p.y)),
     }
-    const next = {
+    let next = {
       x: this.x.filter(med.x, timestamp),
       y: this.y.filter(med.y, timestamp),
     }
-    if (this.last && Math.hypot(next.x - this.last.x, next.y - this.last.y) < 0.0022) {
-      return this.last
+    if (this.last) {
+      const jump = Math.hypot(med.x - this.last.x, med.y - this.last.y)
+      if (jump > 0.14) {
+        const t = Math.min(1, (jump - 0.14) / 0.2)
+        next = {
+          x: next.x + (med.x - next.x) * (0.35 + 0.45 * t),
+          y: next.y + (med.y - next.y) * (0.35 + 0.45 * t),
+        }
+      }
     }
     this.last = next
     return this.last
@@ -408,5 +422,6 @@ export class GazeSmoother {
     this.y.reset()
     this.window = []
     this.last = null
+    this.lastAt = -Infinity
   }
 }

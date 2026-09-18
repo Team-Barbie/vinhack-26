@@ -1,4 +1,5 @@
 import { FaceLandmarker, FilesetResolver } from '@mediapipe/tasks-vision'
+import { extractHeadPose, poseQuality } from './pose'
 import type { TrackerFrame } from './types'
 
 const MODEL_URL =
@@ -44,7 +45,7 @@ function avgIris(landmarks: Landmark[], idxs: number[], vw: number, vh: number):
   return { x: x / (n || 1), y: y / (n || 1) }
 }
 
-function irisInEye(
+export function irisInEye(
   landmarks: Landmark[],
   irisIdxs: number[],
   inner: number,
@@ -65,6 +66,8 @@ function irisInEye(
   let axisX = { x: innerP.x - outerP.x, y: innerP.y - outerP.y }
   const eyeW = Math.hypot(axisX.x, axisX.y) || 1
   axisX = { x: axisX.x / eyeW, y: axisX.y / eyeW }
+  // Both eyes must use the same image-space direction before averaging.
+  if (axisX.x < 0) axisX = { x: -axisX.x, y: -axisX.y }
 
   let axisY = { x: -axisX.y, y: axisX.x }
   if (axisY.y < 0) {
@@ -126,81 +129,83 @@ export class FaceTracker {
   private lastVideoTime = -1
   private stream: MediaStream | null = null
   private video: HTMLVideoElement
-  private featBuf: number[][] = []
-  private lastFrame: TrackerFrame = {
-    features: null,
-    blinkL: 0,
-    blinkR: 0,
-    faceFound: false,
-    timestamp: 0,
-  }
+  private lastFrame: TrackerFrame = emptyFrame(0)
 
   constructor(video: HTMLVideoElement) {
     this.video = video
   }
 
+  cameraSize(): { width: number; height: number } {
+    return { width: this.video.videoWidth || 0, height: this.video.videoHeight || 0 }
+  }
+
   async start(): Promise<void> {
-    this.stream = await navigator.mediaDevices.getUserMedia({
-      audio: false,
-      video: {
-        facingMode: 'user',
-        width: { ideal: 1280 },
-        height: { ideal: 720 },
-        frameRate: { ideal: 30 },
-      },
-    })
-    this.video.srcObject = this.stream
-    this.video.muted = true
-    this.video.playsInline = true
-    await this.video.play()
-
-    let fileset: Awaited<ReturnType<typeof FilesetResolver.forVisionTasks>> | null = null
-    let lastError: unknown
-    for (const url of WASM_URLS) {
-      try {
-        fileset = await FilesetResolver.forVisionTasks(url)
-        break
-      } catch (err) {
-        lastError = err
-      }
-    }
-    if (!fileset) {
-      throw lastError instanceof Error ? lastError : new Error('Failed to load MediaPipe wasm')
-    }
-
-    const options = {
-      runningMode: 'VIDEO' as const,
-      numFaces: 1,
-      outputFaceBlendshapes: true,
-      outputFacialTransformationMatrixes: false,
-      baseOptions: {
-        modelAssetPath: MODEL_URL,
-        delegate: 'GPU' as const,
-      },
-    }
-
+    this.stop()
     try {
-      this.landmarker = await FaceLandmarker.createFromOptions(fileset, options)
-    } catch {
-      this.landmarker = await FaceLandmarker.createFromOptions(fileset, {
-        ...options,
-        baseOptions: { ...options.baseOptions, delegate: 'CPU' },
+      this.stream = await navigator.mediaDevices.getUserMedia({
+        audio: false,
+        video: {
+          facingMode: 'user',
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+          frameRate: { ideal: 30 },
+        },
       })
+      this.video.srcObject = this.stream
+      this.video.muted = true
+      this.video.playsInline = true
+      await this.video.play()
+
+      let fileset: Awaited<ReturnType<typeof FilesetResolver.forVisionTasks>> | null = null
+      let lastError: unknown
+      for (const url of WASM_URLS) {
+        try {
+          fileset = await FilesetResolver.forVisionTasks(url)
+          break
+        } catch (err) {
+          lastError = err
+        }
+      }
+      if (!fileset) {
+        throw lastError instanceof Error ? lastError : new Error('Failed to load MediaPipe wasm')
+      }
+
+      const options = {
+        runningMode: 'VIDEO' as const,
+        numFaces: 1,
+        outputFaceBlendshapes: true,
+        outputFacialTransformationMatrixes: true,
+        baseOptions: {
+          modelAssetPath: `${import.meta.env.BASE_URL}models/face_landmarker.task`,
+          delegate: 'GPU' as const,
+        },
+      }
+
+      try {
+        this.landmarker = await FaceLandmarker.createFromOptions(fileset, options)
+      } catch {
+        try {
+          this.landmarker = await FaceLandmarker.createFromOptions(fileset, {
+            ...options, baseOptions: { ...options.baseOptions, delegate: 'CPU' },
+          })
+        } catch {
+          this.landmarker = await FaceLandmarker.createFromOptions(fileset, {
+            ...options, baseOptions: { modelAssetPath: MODEL_URL, delegate: 'CPU' },
+          })
+        }
+      }
+    } catch (error) {
+      this.stop()
+      throw error
     }
   }
 
   update(now: number): TrackerFrame {
-    const empty: TrackerFrame = {
-      features: null,
-      blinkL: 0,
-      blinkR: 0,
-      faceFound: false,
-      timestamp: now,
-    }
+    const empty = emptyFrame(now)
     if (!this.landmarker || this.video.readyState < 2) return empty
 
     if (this.video.currentTime === this.lastVideoTime) {
-      return { ...this.lastFrame, timestamp: now }
+      return now - this.lastFrame.timestamp > 200 ? empty : this.lastFrame
     }
     this.lastVideoTime = this.video.currentTime
 
@@ -212,28 +217,20 @@ export class FaceTracker {
     try {
       result = this.landmarker.detectForVideo(this.video, ts)
     } catch {
-      return this.lastFrame
+      this.lastFrame = empty
+      return empty
     }
     const landmarks = result.faceLandmarks[0]
-    if (!landmarks || landmarks.length < 468) {
-      this.featBuf = []
+    if (!landmarks || landmarks.length < 478) {
       this.lastFrame = empty
       return empty
     }
 
     const vw = this.video.videoWidth || 1280
     const vh = this.video.videoHeight || 720
-    let features = extractFeatures(landmarks, vw, vh)
-    if (features) {
-      this.featBuf.push(features)
-      if (this.featBuf.length > 5) this.featBuf.shift()
-      features = features.map((_, i) => {
-        const vals = this.featBuf.map((f) => f[i]).sort((a, b) => a - b)
-        return vals[Math.floor(vals.length / 2)]
-      })
-    } else {
-      this.featBuf = []
-    }
+    const features = extractFeatures(landmarks, vw, vh)
+    const pose = extractHeadPose(landmarks, result.facialTransformationMatrixes?.[0], vw, vh)
+    const iodOk = pose.dist > 0.035 && pose.dist < 0.35
 
     const categories = result.faceBlendshapes[0]?.categories
     const earL = earToBlink(
@@ -242,15 +239,20 @@ export class FaceTracker {
     const earR = earToBlink(
       eyeAspectRatio(landmarks, LM.rightUpper, LM.rightLower, LM.rightInner, LM.rightOuter, vw, vh),
     )
-    const blinkL = Math.max(blendScore(categories, 'eyeBlinkLeft') ?? 0, earL)
-    const blinkR = Math.max(blendScore(categories, 'eyeBlinkRight') ?? 0, earR)
+    const blinkL = blendScore(categories, 'eyeBlinkLeft') ?? earL
+    const blinkR = blendScore(categories, 'eyeBlinkRight') ?? earR
+    const quality = poseQuality(pose, Math.max(blinkL, blinkR), iodOk && Boolean(features?.every(Number.isFinite)))
 
     this.lastFrame = {
       features,
+      pose,
+      quality,
       blinkL,
       blinkR,
-      faceFound: true,
+      faceFound: Boolean(features?.every(Number.isFinite)),
       timestamp: ts,
+      cameraWidth: vw,
+      cameraHeight: vh,
     }
     return this.lastFrame
   }
@@ -260,5 +262,23 @@ export class FaceTracker {
     this.landmarker = null
     this.stream?.getTracks().forEach((t) => t.stop())
     this.stream = null
+    this.video.srcObject = null
+    this.lastTimestamp = -1
+    this.lastVideoTime = -1
+    this.lastFrame = emptyFrame(0)
+  }
+}
+
+function emptyFrame(timestamp: number): TrackerFrame {
+  return {
+    features: null,
+    pose: null,
+    quality: 0,
+    blinkL: 0,
+    blinkR: 0,
+    faceFound: false,
+    timestamp,
+    cameraWidth: 0,
+    cameraHeight: 0,
   }
 }

@@ -91,7 +91,10 @@ export class Game {
   }
 
   fire(point: Point, now: number): boolean {
-    if (this.ended) return false
+    if (this.ended || this.remainingMs(now) <= 0) {
+      this.ended = true
+      return false
+    }
     const hit = this.targets.find((t) => this.hitsTarget(t, point))
     this.lastShot = { point, hit: Boolean(hit), at: now }
     if (hit) {
@@ -137,13 +140,27 @@ export class Game {
     return { x: mx, y: my, w: this.width - mx * 2, h: this.height - my * 2 }
   }
 
+  resize(width: number, height: number): void {
+    if (width === this.width && height === this.height) return
+    for (const t of this.targets) {
+      t.x *= width / this.width
+      t.y *= height / this.height
+      t.radius = Math.min(this.config.radius, width * 0.12, height * 0.12)
+      t.x = Math.max(t.radius, Math.min(width - t.radius, t.x))
+      t.y = Math.max(t.radius, Math.min(height - t.radius, t.y))
+      t.dwellMs = 0
+    }
+    this.width = width
+    this.height = height
+  }
+
   private hitsTarget(target: Target, point: Point): boolean {
     return Math.hypot(point.x - target.x, point.y - target.y) <= target.radius
   }
 
   private spawn(now: number): void {
     const area = this.playArea()
-    const r = this.config.radius
+    const r = Math.min(this.config.radius, this.width * 0.12, this.height * 0.12)
     let placed: Point | null = null
     for (let attempt = 0; attempt < 40; attempt++) {
       const candidate = {
