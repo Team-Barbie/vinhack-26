@@ -1,20 +1,22 @@
 import { useEffect, useRef, useState, type MutableRefObject } from 'react'
 import type { EyeTracker } from '../hooks/useEyeTracker'
-import type { CalibrationSample, Vec2 } from '../lib/eyeTracking'
+import {
+  DIRECTION_TARGETS,
+  medianFeatures,
+  profileUsable,
+  type Direction,
+  type RemoteProfile,
+} from '../lib/eyeRemote'
 import './AimGame.css'
+import './CalibrationFlow.css'
 
-const SETTLE_MS = 1000
-const COLLECT_TARGET = 24
-const COLLECT_TIMEOUT_MS = 3500
-const STABLE_SD = 0.02
+// Timing and noise gates are prnvh's original eye-remote setup values.
+const SETTLE_MS = 850
+const SAMPLES_PER_STEP = 24
+const MAX_NOISE = 0.018
+const CLOSED_LID = 0.55
 
 export type Point = { x: number; y: number }
-
-export function qualityOf(error: number): { label: string; tone: 'good' | 'fair' | 'rough' } {
-  if (error < 0.05) return { label: 'Good', tone: 'good' }
-  if (error < 0.1) return { label: 'Fair', tone: 'fair' }
-  return { label: 'Rough', tone: 'rough' }
-}
 
 export function useCursor(eye: EyeTracker, mode: 'gaze' | 'mouse'): MutableRefObject<Point | null> {
   const cursorRef = useRef<Point | null>(null)
@@ -138,125 +140,104 @@ function EyeLandmarkOverlay({ eye }: { eye: EyeTracker }) {
   )
 }
 
-// Walks the patient through `targets`, keeping only steady, eyes-open samples,
-// and hands back the median features for each dot.
-export function Calibration({
+// Middle, left, right, up, down, then the middle again: the last look replaces
+// the first centre template once the eyes have relaxed from the edges.
+const STEPS: Direction[] = ['center', 'left', 'right', 'up', 'down', 'center']
+const ARROWS: Record<Direction, string> = { center: '●', left: '←', right: '→', up: '↑', down: '↓' }
+const SPOKEN: Record<Direction, string> = {
+  center: 'at the middle dot',
+  left: 'at the left dot',
+  right: 'at the right dot',
+  up: 'at the top dot',
+  down: 'at the bottom dot',
+}
+
+export function DirectionCalibration({
   eye,
-  targets,
   onComplete,
+  onFail,
   onCancel,
 }: {
   eye: EyeTracker
-  targets: Vec2[]
-  onComplete: (samples: CalibrationSample[]) => void
+  onComplete: (profile: RemoteProfile) => void
+  onFail: (message: string) => void
   onCancel: () => void
 }) {
-  const [index, setIndex] = useState(0)
-  const [attempt, setAttempt] = useState(0)
-  const [collectingKey, setCollectingKey] = useState('')
-  const [warning, setWarning] = useState('')
-  const samplesRef = useRef<CalibrationSample[]>([])
-  const onCompleteRef = useRef(onComplete)
-  const pointKey = `${index}-${attempt}`
-  const collecting = collectingKey === pointKey
+  const [step, setStep] = useState(0)
+  const [progress, setProgress] = useState(0)
+  const [hint, setHint] = useState('')
+  const templates = useRef<Partial<RemoteProfile>>({})
+  const callbacks = useRef({ onComplete, onFail })
+  const direction = STEPS[step] ?? 'center'
 
   useEffect(() => {
-    onCompleteRef.current = onComplete
-  }, [onComplete])
+    callbacks.current = { onComplete, onFail }
+  }, [onComplete, onFail])
 
   useEffect(() => {
-    if (index >= targets.length) {
-      onCompleteRef.current(samplesRef.current)
+    if (step >= STEPS.length) {
+      const profile = templates.current as RemoteProfile
+      if (profileUsable(profile)) callbacks.current.onComplete({ ...profile })
+      else callbacks.current.onFail("Couldn't tell your directions apart. Try again and move your eyes all the way to each dot.")
       return
     }
 
-    const target = targets[index]
-    const buffer: number[][] = []
     let raf = 0
-    let collecting = false
-    let done = false
+    let lastFrame = -1
     let settleFrom = performance.now()
-    let collectAt = 0
-
-    const finish = (next: () => void) => {
-      if (done) return
-      done = true
-      next()
-    }
-
-    let lastSampleAt = -1
+    let samples: number[][] = []
 
     const tick = () => {
-      if (done) return
       raf = requestAnimationFrame(tick)
       const now = performance.now()
       const snap = eye.snapshotRef.current
-      if (snap.at === lastSampleAt) return
-      lastSampleAt = snap.at
-      const usable = Boolean(snap.faceFound && !snap.eyesClosed && snap.features?.every(Number.isFinite))
-
+      const fresh = now - snap.at < 350
+      const usable = fresh && snap.detectedFace && snap.features?.length === 4 && snap.features.every(Number.isFinite)
       if (!usable) {
+        samples = []
         settleFrom = now
-        if (collecting) {
-          buffer.length = 0
-          collecting = false
-          setCollectingKey('')
-          setWarning('Keep your eyes open and your face in view')
-        }
+        setProgress(0)
+        setHint(fresh ? 'Face the camera' : 'Waiting for the camera')
+        return
+      }
+      if (snap.at <= lastFrame) return
+      lastFrame = snap.at
+      if (Math.max(snap.blinkL ?? 0, snap.blinkR ?? 0) > CLOSED_LID) {
+        samples = []
+        settleFrom = now
+        setProgress(0)
+        setHint('Keep your eyes open')
+        return
+      }
+      if (now - settleFrom < SETTLE_MS) {
+        setHint('')
         return
       }
 
-      if (!collecting) {
-        if (now - settleFrom < SETTLE_MS) return
-        collecting = true
-        collectAt = now
-        setCollectingKey(`${index}-${attempt}`)
-        setWarning('')
-      }
+      samples.push(snap.features!.slice(0, 4))
+      setProgress(samples.length / SAMPLES_PER_STEP)
+      if (samples.length < SAMPLES_PER_STEP) return
 
-      buffer.push(snap.features!.slice())
-
-      if (buffer.length < COLLECT_TARGET) {
-        if (now - collectAt > COLLECT_TIMEOUT_MS) {
-          finish(() => {
-            setWarning("Couldn't see your eyes. Look at the dot and hold still.")
-            setAttempt((a) => a + 1)
-          })
-        }
+      const median = medianFeatures(samples)
+      const noise = Math.max(
+        ...median.map((v, i) => Math.sqrt(samples.reduce((sum, f) => sum + (f[i] - v) ** 2, 0) / samples.length)),
+      )
+      if (noise > MAX_NOISE) {
+        samples = []
+        settleFrom = now
+        setProgress(0)
+        setHint('Hold still, trying that one again')
         return
       }
-
-      const dim = buffer[0].length
-      const stable = Array.from({ length: dim }, (_, d) => {
-        const values = buffer.map((s) => s[d])
-        const mean = values.reduce((a, b) => a + b, 0) / values.length
-        const sd = Math.sqrt(values.reduce((sum, v) => sum + (v - mean) ** 2, 0) / values.length)
-        return sd <= STABLE_SD
-      }).every(Boolean)
-      if (!stable) {
-        finish(() => {
-          setWarning('Hold still and keep looking at this dot')
-          setAttempt((a) => a + 1)
-        })
-        return
-      }
-
-      const features = Array.from({ length: dim }, (_, d) => {
-        const values = buffer.map((s) => s[d]).sort((a, b) => a - b)
-        return values[Math.floor(values.length / 2)]
-      })
-      finish(() => {
-        samplesRef.current.push({ features, target })
-        setWarning('')
-        setIndex((i) => i + 1)
-      })
+      templates.current[STEPS[step]] = median
+      cancelAnimationFrame(raf)
+      setProgress(0)
+      setHint('')
+      setStep((s) => s + 1)
     }
     raf = requestAnimationFrame(tick)
-
-    return () => {
-      cancelAnimationFrame(raf)
-    }
-  }, [index, attempt, eye.snapshotRef, targets])
+    return () => cancelAnimationFrame(raf)
+  }, [eye.snapshotRef, step])
 
   useEffect(() => {
     const key = (e: KeyboardEvent) => {
@@ -266,29 +247,29 @@ export function Calibration({
     return () => window.removeEventListener('keydown', key)
   }, [onCancel])
 
-  const target = targets[Math.min(index, targets.length - 1)]
+  const [x, y] = DIRECTION_TARGETS[direction]
+  const isLast = step === STEPS.length - 1
 
   return (
-    <div className="aim-calibration">
-      <div className="aim-calibration-hud">
+    <div className={`direction-calibration at-${direction}`} role="dialog" aria-modal="true" aria-label="Calibrate your eyes">
+      <div className="direction-copy">
         <span className="aim-eyebrow">
-          Dot {Math.min(index + 1, targets.length)} of {targets.length}
+          Step {Math.min(step + 1, STEPS.length)} of {STEPS.length}
         </span>
-        <span className="aim-calibration-hint">
-          {warning || (collecting ? 'Keep looking' : 'Look at the dot until it fills in')}
-        </span>
-        <FaceChip eye={eye} />
+        <strong>{isLast ? 'Back to the middle' : `Look ${SPOKEN[direction]}`}</strong>
+        <p>{hint || 'Move only your eyes and keep your head still until the bar fills.'}</p>
+        <progress value={progress} max={1} />
+        <div className="direction-copy-row">
+          <FaceChip eye={eye} />
+          <button type="button" className="aim-btn is-ghost" onClick={onCancel}>
+            Cancel
+          </button>
+        </div>
       </div>
-      <div
-        key={pointKey}
-        className={`calib-dot ${collecting ? 'is-collecting' : ''}`}
-        style={{ left: `${target[0] * 100}%`, top: `${target[1] * 100}%` }}
-      />
+      <div className="direction-dot" style={{ left: `${x * 100}%`, top: `${y * 100}%` }}>
+        {ARROWS[direction]}
+      </div>
       <EyeLandmarkOverlay eye={eye} />
-      <span className={`eye-lock-label ${eye.faceFound ? 'is-locked' : ''}`}>
-        {eye.faceFound ? 'Eyes found' : 'Looking for your eyes'}
-      </span>
-      <span className="aim-calibration-escape">Esc to cancel</span>
     </div>
   )
 }

@@ -33,28 +33,41 @@ export function classifyDirection(p: RemoteProfile, f: number[]): Direction {
   return directionSignal(p, f).direction
 }
 
-export const REMOTE_CENTER_TARGET: [number, number] = [0.5, 0.5]
+// Where each calibration dot sits, as fractions of the viewport.
+export const DIRECTION_TARGETS: Record<Direction, [number, number]> = {
+  center: [0.5, 0.5],
+  left: [0.08, 0.5],
+  right: [0.92, 0.5],
+  up: [0.5, 0.08],
+  down: [0.5, 0.9],
+}
 
-// The shared calibration already has the patient look at the middle, the side
-// columns and the top and bottom of the screen, so the remote's five direction
-// templates come from those dots instead of a second setup.
-export function profileFromCalibration(samples: { features: number[]; target: [number, number] }[]): RemoteProfile | null {
-  const near = (a: number, b: number) => Math.abs(a - b) < 0.03
-  const pick: Record<Direction, (x: number, y: number) => boolean> = {
-    center: (x, y) => near(x, 0.5) && near(y, 0.5),
-    left: (x, y) => x < 0.2 && y > 0.2 && y < 0.8,
-    right: (x, y) => x > 0.8 && y > 0.2 && y < 0.8,
-    up: (x, y) => near(x, 0.5) && y < 0.2,
-    down: (x, y) => near(x, 0.5) && y > 0.8,
-  }
-  const profile = {} as RemoteProfile
-  for (const d of DIRECTIONS) {
-    const group = samples.filter((s) => pick[d](s.target[0], s.target[1])).map((s) => s.features.slice(0, 4))
-    if (group.length === 0) return null
-    profile[d] = [0, 1, 2, 3].map((i) => group.reduce((sum, f) => sum + f[i], 0) / group.length)
-  }
-  if (!profileValid(profile) || DIRECTIONS.some((d) => classifyDirection(profile, profile[d]) !== d)) return null
-  return profile
+export function profileUsable(p: RemoteProfile): boolean {
+  return profileValid(p) && DIRECTIONS.every((d) => classifyDirection(p, p[d]) === d)
+}
+
+// Screen pointer from the same five templates. Eye features move roughly
+// linearly with gaze, so fit the offset from the middle template as a mix of the
+// left-to-right and top-to-bottom feature changes (2x2 least squares), which
+// also cancels the vertical drift that horizontal looks carry and vice versa.
+export function pointerFromProfile(p: RemoteProfile, f: number[]): [number, number] | null {
+  if (f.length !== 4 || !f.every(Number.isFinite)) return null
+  const T = DIRECTION_TARGETS
+  const bx = p.right.map((v, i) => (v - p.left[i]) / (T.right[0] - T.left[0]))
+  const by = p.down.map((v, i) => (v - p.up[i]) / (T.down[1] - T.up[1]))
+  const delta = f.map((v, i) => v - p.center[i])
+  const dot = (a: number[], b: number[]) => a.reduce((s, v, i) => s + v * b[i], 0)
+  const xx = dot(bx, bx)
+  const yy = dot(by, by)
+  const xy = dot(bx, by)
+  const det = xx * yy - xy * xy
+  if (Math.abs(det) < 1e-12) return null
+  const rx = dot(delta, bx)
+  const ry = dot(delta, by)
+  const sx = (rx * yy - ry * xy) / det
+  const sy = (ry * xx - rx * xy) / det
+  const clamp = (v: number) => Math.min(1, Math.max(0, v))
+  return [clamp(T.center[0] + sx), clamp(T.center[1] + sy)]
 }
 
 export class RemoteRepeater {

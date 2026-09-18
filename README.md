@@ -30,7 +30,7 @@ Open the local URL printed by Vite and allow camera access. Browser camera acces
 
 ### Calibrate once
 
-The app opens on a one-time calibration: look at each of 13 dots until it fills in (about 20 seconds). That single calibration drives everything: the Aim Trainer crosshair, Phrases, and the eye remote on the Patient Board. It is saved in the browser, so later visits go straight to the home screen. Use **Calibrate again** on the home screen or the board if you move the laptop or change seats. **Skip, I'll use touch** leaves every screen working by tap, mouse, and keyboard.
+The app opens on a one-time calibration: a dot appears in the middle, then on the left, right, top, and bottom of the screen, and you look at each until its bar fills (about 15 seconds). Those five directions drive everything: the eye remote on the Patient Board, left/right/up in Phrases, and the Aim Trainer crosshair. It is saved in the browser, so later visits go straight to the home screen. Use **Calibrate again** on the home screen or the board if you move the laptop or change seats. **Skip, I'll use touch** leaves every screen working by tap, mouse, and keyboard.
 
 If you already have the repository, run only `cd web`, `npm install`, and `npm run dev` from its root. No API key or environment file is required by the current app.
 

@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import type { EyeTracker } from '../hooks/useEyeTracker'
+import { directionSignal, medianFeatures, type RemoteProfile } from '../lib/eyeRemote'
 import './GazePhraseBoard.css'
 
 type GazeZone = 'left' | 'right' | 'back'
-type RemoteDirection = GazeZone | 'neutral'
 
 const DWELL_MS = 1100
 
@@ -61,16 +61,16 @@ function splitPhrases(phrases: readonly string[]) {
   return [phrases.slice(0, middle), phrases.slice(middle)] as const
 }
 
-function remoteDirectionFor(screen: { x: number; y: number } | null): RemoteDirection | null {
-  if (!screen) return null
-  if (screen.y < window.innerHeight * 0.18) return 'back'
-  if (screen.x < window.innerWidth * 0.43) return 'left'
-  if (screen.x > window.innerWidth * 0.57) return 'right'
-  return 'neutral'
+// Uses the same calibrated directions as the eye remote: left and right pick a
+// half, looking up goes back, and the middle (or down) is the neutral rest.
+function zoneFor(profile: RemoteProfile, recent: number[][]): GazeZone | null {
+  const direction = directionSignal(profile, medianFeatures(recent)).direction
+  if (direction === 'left' || direction === 'right') return direction
+  return direction === 'up' ? 'back' : null
 }
 
 export default function GazePhraseBoard({ eye }: { eye: EyeTracker }) {
-  const { status, faceFound, calibrated, snapshotRef, onBlink } = eye
+  const { status, faceFound, calibrated, snapshotRef, onBlink, remoteProfile } = eye
   const [choices, setChoices] = useState<readonly string[]>(PHRASES)
   const [history, setHistory] = useState<readonly string[][]>([])
   const [activeZone, setActiveZone] = useState<GazeZone | null>(null)
@@ -133,7 +133,8 @@ export default function GazePhraseBoard({ eye }: { eye: EyeTracker }) {
   )
 
   useEffect(() => {
-    if (!calibrated) return
+    if (!remoteProfile) return
+    let recent: number[][] = []
 
     const timer = window.setInterval(() => {
       const frame = snapshotRef.current
@@ -152,9 +153,11 @@ export default function GazePhraseBoard({ eye }: { eye: EyeTracker }) {
         blinkPausedAtRef.current = null
       }
 
-      if (frame.faceFound && frame.screen) {
-        const direction = remoteDirectionFor(frame.screen)
-        if (direction !== 'neutral') zone = direction
+      if (frame.detectedFace && frame.features?.length === 4 && frame.features.every(Number.isFinite)) {
+        recent = [...recent.slice(-2), frame.features.slice(0, 4)]
+        zone = zoneFor(remoteProfile, recent)
+      } else {
+        recent = []
       }
 
       const now = performance.now()
@@ -185,7 +188,7 @@ export default function GazePhraseBoard({ eye }: { eye: EyeTracker }) {
     }, 50)
 
     return () => window.clearInterval(timer)
-  }, [calibrated, commitGazeZone, snapshotRef])
+  }, [commitGazeZone, remoteProfile, snapshotRef])
 
   useEffect(() => {
     if (!calibrated) return

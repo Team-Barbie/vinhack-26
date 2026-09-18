@@ -1,17 +1,16 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { FaceLandmarker, FilesetResolver, type NormalizedLandmark } from '@mediapipe/tasks-vision'
 import { BlinkDetector } from '../lib/blink'
-import { profileValid, type RemoteProfile } from '../lib/eyeRemote'
-import { GazeTracker, mapGaze, type CalibrationModel, type Vec2 } from '../lib/eyeTracking'
+import { pointerFromProfile, profileUsable, type RemoteProfile } from '../lib/eyeRemote'
+import { GazeTracker, type Vec2 } from '../lib/eyeTracking'
 import { GazeFilter } from '../lib/gazeFilter'
 
 // Pinned to the installed @mediapipe/tasks-vision version; bump both together.
 const WASM_URL = 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.0.1/wasm'
 const MODEL_URL =
   'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task'
-// Calibration is done once and kept across visits, so it lives in localStorage.
-const MODEL_KEY = 'gazebridge.calibration.v3'
-const REMOTE_KEY = 'gazebridge.remote.v1'
+// The five-direction calibration is done once and kept across visits.
+const CALIBRATION_KEY = 'gazebridge.directions.v1'
 
 export type TrackerStatus = 'loading' | 'ready' | 'error'
 
@@ -98,18 +97,8 @@ function writeStored(key: string, value: unknown) {
   }
 }
 
-const validModel = (model: CalibrationModel) =>
-  model.version === 3 &&
-  Array.isArray(model.wx) &&
-  Array.isArray(model.yKnots) &&
-  Array.isArray(model.means) &&
-  Array.isArray(model.stds)
-
-function loadStoredCalibration() {
-  return {
-    model: readStored<CalibrationModel>(MODEL_KEY, validModel),
-    remote: readStored<RemoteProfile>(REMOTE_KEY, profileValid),
-  }
+function loadStoredProfile() {
+  return readStored<RemoteProfile>(CALIBRATION_KEY, profileUsable)
 }
 
 function describeError(err: unknown): string {
@@ -150,10 +139,10 @@ export function useEyeTracker() {
     at: 0,
   })
   const landmarksRef = useRef<NormalizedLandmark[] | null>(null)
-  const [stored] = useState(loadStoredCalibration)
-  const modelRef = useRef<CalibrationModel | null>(stored.model)
-  const [calibrated, setCalibrated] = useState(stored.model !== null)
-  const [remoteProfile, setRemoteProfile] = useState<RemoteProfile | null>(stored.remote)
+  const [storedProfile] = useState(loadStoredProfile)
+  const profileRef = useRef<RemoteProfile | null>(storedProfile)
+  const [remoteProfile, setRemoteProfile] = useState<RemoteProfile | null>(storedProfile)
+  const calibrated = remoteProfile !== null
   const filterRef = useRef(new GazeFilter())
   const blinkRef = useRef(new BlinkDetector())
   const blinkListeners = useRef(new Set<() => void>())
@@ -225,10 +214,10 @@ export function useEyeTracker() {
 
           const shot = blink.update(frame, ts)
           const blinking = blink.isFrozen(ts)
-          const model = modelRef.current
+          const profile = profileRef.current
           let predicted: Vec2 | null = null
-          if (frame.faceFound && frame.features && model && !blinking) {
-            predicted = mapGaze(model, frame.features)
+          if (frame.faceFound && frame.features && profile && !blinking) {
+            predicted = pointerFromProfile(profile, frame.features)
           }
           const filtered = filterRef.current.update(predicted, ts, {
             quality: frame.quality,
@@ -270,15 +259,13 @@ export function useEyeTracker() {
     }
   }, [])
 
-  const saveCalibration = useCallback((model: CalibrationModel | null, remote: RemoteProfile | null) => {
-    modelRef.current = model
+  const saveCalibration = useCallback((profile: RemoteProfile | null) => {
+    profileRef.current = profile
     filterRef.current.reset()
     blinkRef.current.reset()
     snapshotRef.current = { ...snapshotRef.current, screen: null }
-    setCalibrated(model !== null)
-    setRemoteProfile(remote)
-    writeStored(MODEL_KEY, model)
-    writeStored(REMOTE_KEY, remote)
+    setRemoteProfile(profile)
+    writeStored(CALIBRATION_KEY, profile)
   }, [])
 
   const onBlink = useCallback((fn: () => void) => {
@@ -297,7 +284,6 @@ export function useEyeTracker() {
     remoteProfile,
     snapshotRef,
     landmarksRef,
-    modelRef,
     saveCalibration,
     onBlink,
   }

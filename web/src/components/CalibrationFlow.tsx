@@ -1,45 +1,34 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useEye } from '../hooks/EyeTrackerProvider'
-import { directionSignal, profileFromCalibration, REMOTE_CENTER_TARGET, type Direction } from '../lib/eyeRemote'
-import { CALIBRATION_TARGETS, fitCalibration, type CalibrationSample, type Vec2 } from '../lib/eyeTracking'
-import { Calibration, Crosshair, FaceChip, qualityOf, useCursor } from './Calibration'
+import { directionSignal, medianFeatures, type Direction, type RemoteProfile } from '../lib/eyeRemote'
+import { Crosshair, DirectionCalibration, FaceChip, useCursor } from './Calibration'
 import './AimGame.css'
 import './CalibrationFlow.css'
 
-// The gaze model is fitted on the 12-dot grid only; the extra centre dot shown
-// first gives the eye remote a true resting-gaze reference.
-const TARGETS: Vec2[] = [REMOTE_CENTER_TARGET, ...CALIBRATION_TARGETS]
-const isCenter = (s: CalibrationSample) =>
-  s.target[0] === REMOTE_CENTER_TARGET[0] && s.target[1] === REMOTE_CENTER_TARGET[1]
-
 type Phase = 'intro' | 'calibrating' | 'check'
 
-function DirectionPad() {
+function DirectionPad({ profile }: { profile: RemoteProfile }) {
   const eye = useEye()
-  const profile = eye.remoteProfile
   const [direction, setDirection] = useState<Direction | null>(null)
 
   useEffect(() => {
-    if (!profile) return
     let raf = 0
+    let recent: number[][] = []
     const tick = () => {
       const snap = eye.snapshotRef.current
       const f = snap.features
-      setDirection(snap.detectedFace && f?.length === 4 ? directionSignal(profile, f).direction : null)
+      if (snap.detectedFace && f?.length === 4 && f.every(Number.isFinite)) {
+        recent = [...recent.slice(-2), f.slice(0, 4)]
+        setDirection(directionSignal(profile, medianFeatures(recent)).direction)
+      } else {
+        recent = []
+        setDirection(null)
+      }
       raf = requestAnimationFrame(tick)
     }
     raf = requestAnimationFrame(tick)
     return () => cancelAnimationFrame(raf)
   }, [eye.snapshotRef, profile])
-
-  if (!profile) {
-    return (
-      <p className="calib-flow-note">
-        The eye remote couldn't tell your directions apart, so it's off for now. Tapping still works. Calibrate again
-        and move your eyes all the way to each dot to turn it on.
-      </p>
-    )
-  }
 
   const key = (d: Direction, label: string) => (
     <span className={`calib-pad-key is-${d} ${direction === d ? 'is-active' : ''}`}>{label}</span>
@@ -60,8 +49,7 @@ export default function CalibrationFlow({ onDone }: { onDone: () => void }) {
   const eye = useEye()
   const { setPreview, saveCalibration } = eye
   const [phase, setPhase] = useState<Phase>('intro')
-  const [failed, setFailed] = useState(false)
-  const [error, setError] = useState(0)
+  const [failure, setFailure] = useState('')
   const cursorRef = useCursor(eye, 'gaze')
   const ready = eye.status === 'ready' && eye.faceFound
 
@@ -70,43 +58,38 @@ export default function CalibrationFlow({ onDone }: { onDone: () => void }) {
     return () => setPreview('small')
   }, [phase, setPreview])
 
-  const finish = useCallback(
-    (samples: CalibrationSample[]) => {
-      const model = fitCalibration(samples.filter((s) => !isCenter(s)))
-      if (!model) {
-        setFailed(true)
-        setPhase('intro')
-        return
-      }
-      saveCalibration(model, profileFromCalibration(samples))
-      setError(model.error)
-      setFailed(false)
+  const complete = useCallback(
+    (profile: RemoteProfile) => {
+      saveCalibration(profile)
+      setFailure('')
       setPhase('check')
     },
     [saveCalibration],
   )
 
+  const fail = useCallback((message: string) => {
+    setFailure(message)
+    setPhase('intro')
+  }, [])
+
   const cancel = useCallback(() => setPhase('intro'), [])
 
   if (phase === 'calibrating') {
-    return <Calibration eye={eye} targets={TARGETS} onComplete={finish} onCancel={cancel} />
+    return <DirectionCalibration eye={eye} onComplete={complete} onFail={fail} onCancel={cancel} />
   }
 
-  if (phase === 'check') {
-    const quality = qualityOf(error)
+  if (phase === 'check' && eye.remoteProfile) {
     return (
       <main className="aim-setup">
         <Crosshair cursorRef={cursorRef} dimmed={!eye.faceFound} />
         <div className="aim-setup-card">
           <span className="aim-eyebrow">Calibration saved</span>
-          <h1 className="aim-title">
-            Tracking is <span className={`aim-quality is-${quality.tone}`}>{quality.label.toLowerCase()}</span>
-          </h1>
+          <h1 className="aim-title">Check it works</h1>
           <p className="aim-lede">
-            Look around. The crosshair should follow your eyes, and the pad below lights up as you look up, down,
-            left and right.
+            Look up, down, left and right. The matching box should light up, and look back at the middle to settle it.
+            The crosshair follows your eyes too.
           </p>
-          <DirectionPad />
+          <DirectionPad profile={eye.remoteProfile} />
           <div className="aim-actions">
             <button type="button" className="aim-btn is-primary" onClick={onDone}>
               Looks right, continue
@@ -126,12 +109,11 @@ export default function CalibrationFlow({ onDone }: { onDone: () => void }) {
         <span className="aim-eyebrow">GazeBridge</span>
         <h1 className="aim-title">First, calibrate your eyes</h1>
         <p className="aim-lede">
-          You only do this once. Sit about an arm's length from the laptop with your face lit, keep your head still,
-          and look at each dot until it fills in. It takes about 20 seconds.
+          You only do this once. Sit about an arm's length from the laptop with your face lit and keep your head still.
+          A dot will appear in the middle, then on the left, right, top and bottom of the screen. Look at each one until
+          the bar fills. It takes about 15 seconds.
         </p>
-        {failed && (
-          <p className="aim-error">That didn't work. Try again with more light on your face and your head still.</p>
-        )}
+        {failure && <p className="aim-error">{failure}</p>}
         <div className="aim-status-row">
           <FaceChip eye={eye} />
         </div>
