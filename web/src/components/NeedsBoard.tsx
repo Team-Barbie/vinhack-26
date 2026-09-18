@@ -6,9 +6,10 @@ interface NeedTile {
   icon: string
   label: string
   phrase: string
+  instant?: boolean
 }
 
-type Screen = 'main' | 'more' | 'urgent'
+type Screen = 'main' | 'quick' | 'more' | 'urgent'
 
 const MAIN_TILES: NeedTile[] = [
   { id: 'nurse', icon: '🔔', label: 'Call Nurse', phrase: 'I need a nurse' },
@@ -34,6 +35,21 @@ const MORE_TILES: NeedTile[] = [
   { id: 'rest', icon: '😴', label: "I'm Ready to Rest", phrase: "I don't need assistance right now" },
 ]
 
+const QUICK_TILES: NeedTile[] = [
+  { id: 'help', icon: '🙋', label: 'Help', phrase: 'I need help', instant: true },
+  { id: 'stop', icon: '✋', label: 'Stop', phrase: 'Please stop', instant: true },
+  { id: 'more', icon: '➕', label: 'More', phrase: 'I want more', instant: true },
+  { id: 'finished', icon: '✅', label: 'Finished', phrase: 'I am finished', instant: true },
+  { id: 'please', icon: '🙏', label: 'Please', phrase: 'Please', instant: true },
+  { id: 'thanks', icon: '💛', label: 'Thank You', phrase: 'Thank you', instant: true },
+  { id: 'repeat', icon: '🔁', label: 'Repeat That', phrase: 'Please repeat that', instant: true },
+  { id: 'understand', icon: '❓', label: "I Don't Understand", phrase: "I don't understand", instant: true },
+  { id: 'wait', icon: '⏳', label: 'Please Wait', phrase: 'Please wait', instant: true },
+  { id: 'talk', icon: '💬', label: 'Talk to Me', phrase: 'I need to talk to you', instant: true },
+  { id: 'wrong', icon: '⚠️', label: "Something's Wrong", phrase: 'Something is wrong', instant: true },
+  { id: 'uncomfortable', icon: '😣', label: "I'm Uncomfortable", phrase: 'I am uncomfortable', instant: true },
+]
+
 const URGENT_TILES: NeedTile[] = [
   { id: 'emergency', icon: '🚨', label: 'Emergency Help', phrase: 'I need immediate assistance' },
   { id: 'breathing', icon: '🫁', label: 'Breathing Trouble', phrase: "I'm having difficulty breathing" },
@@ -45,14 +61,25 @@ const URGENT_TILES: NeedTile[] = [
 
 const SCREENS: Record<Screen, { title: string; tiles: NeedTile[] }> = {
   main: { title: 'Essential Requests', tiles: MAIN_TILES },
+  quick: { title: 'Quick Talk · tap once to speak', tiles: QUICK_TILES },
   more: { title: 'Comfort & Personal Needs', tiles: MORE_TILES },
   urgent: { title: 'Urgent / Health Requests', tiles: URGENT_TILES },
+}
+
+function speak(text: string) {
+  if (!text || !('speechSynthesis' in window)) return
+  window.speechSynthesis.cancel()
+  const utterance = new SpeechSynthesisUtterance(text)
+  utterance.rate = 0.9
+  window.speechSynthesis.speak(utterance)
 }
 
 export default function NeedsBoard() {
   const [screen, setScreen] = useState<Screen>('urgent')
   const [phrase, setPhrase] = useState<NeedTile[]>([])
   const [answerFlash, setAnswerFlash] = useState<'yes' | 'no' | null>(null)
+  const [spokenTile, setSpokenTile] = useState<string | null>(null)
+  const [spokenMessage, setSpokenMessage] = useState('')
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const audioQueueRef = useRef<string[]>([])
   const playNextRef = useRef<() => void>(() => undefined)
@@ -91,6 +118,20 @@ export default function NeedsBoard() {
     playAudioClips([tile.id])
   }
 
+  const activateTile = (tile: NeedTile) => {
+    if (!tile.instant) {
+      addTile(tile)
+      return
+    }
+
+    speak(tile.phrase)
+    setSpokenTile(tile.id)
+    setSpokenMessage(tile.phrase)
+    window.setTimeout(() => {
+      setSpokenTile((current) => (current === tile.id ? null : current))
+    }, 650)
+  }
+
   const clear = () => setPhrase([])
 
   const answer = (value: 'yes' | 'no') => {
@@ -118,6 +159,13 @@ export default function NeedsBoard() {
             onClick={() => setScreen('main')}
           >
             Main
+          </button>
+          <button
+            type="button"
+            className={`nav-tab ${screen === 'quick' ? 'active' : ''}`}
+            onClick={() => setScreen('quick')}
+          >
+            Quick Talk
           </button>
           <button
             type="button"
@@ -156,6 +204,12 @@ export default function NeedsBoard() {
         </div>
       </div>
 
+      {screen === 'quick' && (
+        <div className="speech-status" role="status" aria-live="polite">
+          {spokenMessage ? `Spoke: “${spokenMessage}”` : 'Ready to speak'}
+        </div>
+      )}
+
       <div className="phrase-bar">
         <div className="phrase-text" aria-live="polite">
           {phrase.length === 0 ? (
@@ -188,8 +242,8 @@ export default function NeedsBoard() {
           <button
             key={tile.id}
             type="button"
-            className="need-tile"
-            onClick={() => addTile(tile)}
+            className={`need-tile ${spokenTile === tile.id ? 'spoken' : ''}`}
+            onClick={() => activateTile(tile)}
           >
             <span className="need-icon">{tile.icon}</span>
             <span className="need-label">{tile.label}</span>

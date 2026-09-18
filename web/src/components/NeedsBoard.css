@@ -127,6 +127,15 @@
   flex: 1;
 }
 
+.speech-status {
+  min-height: 22px;
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-align: right;
+}
+
 .answer-btn {
   display: inline-flex;
   align-items: center;
@@ -333,6 +342,14 @@
   background: var(--accent-tint);
 }
 
+.need-tile.spoken {
+  background: var(--accent);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 4px var(--accent-glow), var(--shadow-float);
+  color: var(--accent-ink);
+  transform: translateY(-2px) scale(1.015);
+}
+
 .need-icon {
   font-size: 68px;
   line-height: 1;
@@ -355,6 +372,10 @@
   background: var(--danger-tint);
 }
 
+.screen-quick .need-tile {
+  min-height: 132px;
+}
+
 @media (max-width: 720px) {
   .tile-grid {
     grid-template-columns: repeat(2, 1fr);
@@ -364,5 +385,10 @@
   .quick-answer,
   .phrase-bar {
     flex-wrap: wrap;
+  }
+
+  .nav-tabs {
+    width: 100%;
+    overflow-x: auto;
   }
 }
