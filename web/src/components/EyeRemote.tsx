@@ -54,7 +54,7 @@ export default function EyeRemote({ eye, root, screenKey }: {
       const controls = buttons()
       if (!selected.current || !controls.includes(selected.current)) {
         const initial = screenKey === 'gaze'
-          ? controls.find((b) => b.classList.contains('gaze-choice')) ?? controls[0]
+          ? controls.find((b) => b.dataset.gazeControl === 'true') ?? controls[0]
           : controls.find((b) => b.classList.contains('need-tile')) ?? controls[0]
         if (initial) mark(initial, now, Boolean(profile))
         return

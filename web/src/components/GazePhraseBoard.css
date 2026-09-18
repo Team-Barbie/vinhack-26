@@ -3,7 +3,7 @@
   flex: 1;
   min-height: 0;
   flex-direction: column;
-  gap: 14px;
+  gap: 12px;
 }
 
 .gaze-phrase-toolbar {
@@ -37,8 +37,29 @@
   font-size: 0.82rem;
 }
 
+.gaze-level-title {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 12px;
+  text-align: center;
+}
+
+.gaze-level-title span {
+  color: var(--tone-up);
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.gaze-level-title h2 {
+  margin: 0;
+  font-size: clamp(1.15rem, 2vw, 1.55rem);
+}
+
 .gaze-spoken {
-  padding: 12px 18px;
+  padding: 10px 18px;
   border: 1px solid rgba(107, 217, 143, 0.35);
   border-radius: var(--r-md);
   background: rgba(107, 217, 143, 0.1);
@@ -50,23 +71,26 @@
 .gaze-choice-layout {
   display: grid;
   flex: 1;
-  min-height: 420px;
+  min-height: 300px;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 18px;
+  gap: 16px;
 }
 
 .gaze-choice {
   position: relative;
-  display: flex;
   min-width: 0;
-  flex-direction: column;
-  gap: 14px;
   overflow: hidden;
-  padding: 22px;
   border: 2px solid var(--glass-border);
   border-radius: var(--r-lg);
   background: var(--glass-tint);
   box-shadow: inset 0 1px 0 var(--glass-sheen), var(--shadow-card);
+}
+
+.gaze-choice {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 24px;
   text-align: left;
 }
 
@@ -85,20 +109,25 @@
 .gaze-choice-list {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
-  align-content: start;
+  gap: 10px;
+  align-content: center;
+  flex: 1;
 }
 
 .gaze-choice-list > span {
+  display: grid;
   min-width: 0;
-  padding: 9px 11px;
+  min-height: 58px;
+  place-items: center;
+  padding: 10px 12px;
   border: 1px solid var(--line);
   border-radius: var(--r-sm);
   background: var(--surface);
   color: var(--text-dim);
-  font-size: 0.82rem;
-  font-weight: 700;
+  font-size: 0.9rem;
+  font-weight: 750;
   line-height: 1.25;
+  text-align: center;
 }
 
 .gaze-phrase-hint {
@@ -110,6 +139,5 @@
 @media (max-width: 800px) {
   .gaze-phrase-toolbar { grid-template-columns: 1fr 1fr; }
   .gaze-choice-count { grid-column: 1 / -1; grid-row: 2; }
-  .gaze-choice-layout { min-height: 520px; }
   .gaze-choice-list { grid-template-columns: 1fr; }
 }
