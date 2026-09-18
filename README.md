@@ -34,15 +34,14 @@ If you already have the repository, run only `cd web`, `npm install`, and `npm r
 
 Choose **Patient Board** on the home screen to access:
 
-- Essential requests such as water, food, assistance, and repositioning.
-- Comfort and urgent request categories.
-- Yes/no responses and one-tap Quick Talk phrases.
-- A sentence builder that speaks selected words.
-- **Gaze Phrases**, which narrows a phrase list using left/right gaze selections. Calibrate, look toward the group containing your phrase, and blink or dwell for about 1.1 seconds to select. Return your gaze to the center between selections. Look toward the upper screen area and blink or dwell to go back. Once a single phrase is selected, it is spoken and the list resets. A button-based test mode is also available.
+- **Needs**: water, food, the bathroom, help moving, and calling a nurse.
+- **More** and **Emergency**: comfort requests and urgent health problems.
+- **Talk**: one-tap phrases such as "Stop" or "Say that again", plus yes/no answers.
+- **Phrases**, which narrows a phrase list using left/right gaze selections. Calibrate, look toward the group containing your phrase, and blink or dwell for about 1.1 seconds to select. Return your gaze to the center between selections. Look toward the upper screen area and blink or dwell to go back. Once a single phrase is selected, it is spoken and the list resets. A button-based test mode is also available.
 
-The regular request tiles and sentence builder use buttons; gaze selection is provided through the dedicated Gaze Phrases view.
+The **eye remote** moves a highlight between cards: set it up once, then look left, right, up, or down to move and close your eyes for about half a second to pick. Every card also works by tapping.
 
-The board uses bundled audio clips and browser speech synthesis. Labels such as “Call Nurse” play a message; they do not connect to a hospital dispatch service. VisionLoop is a communication prototype, not a replacement for a hospital's certified nurse-call or emergency system.
+The board uses bundled audio clips and browser speech synthesis. Cards such as "Call a nurse" play a message; they do not connect to a hospital dispatch service. VisionLoop is a communication prototype, not a replacement for a hospital's certified nurse-call or emergency system.
 
 ### Aim Trainer
 

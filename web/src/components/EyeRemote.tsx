@@ -11,7 +11,7 @@ export default function EyeRemote({ eye, root, screenKey }: {
   const [step, setStep] = useState(-1)
   const [profile, setProfile] = useState<RemoteProfile | null>(null)
   const [paused, setPaused] = useState(false)
-  const [status, setStatus] = useState('Set up your eye remote to begin')
+  const [status, setStatus] = useState('Not set up yet')
   const [progress, setProgress] = useState(0)
   const [selectedLabel, setSelectedLabel] = useState('Call Nurse')
   const [detected, setDetected] = useState<Direction>('center')
@@ -83,7 +83,7 @@ export default function EyeRemote({ eye, root, screenKey }: {
         setDetected('center'); setStrength(0)
         samples = []; collectAt = 0
         if (configuring) setProgress(0)
-        if (profile || configuring) setStatus(paused ? 'Remote paused' : now - snap.at > 350 ? 'Waiting for a fresh camera frame' : 'Tracking paused. Face the camera.')
+        if (profile || configuring) setStatus(paused ? 'Remote paused' : now - snap.at > 350 ? 'Waiting for the camera' : 'Tracking paused. Face the camera.')
         return
       }
       if (snap.at <= lastFrame) return
@@ -92,7 +92,7 @@ export default function EyeRemote({ eye, root, screenKey }: {
       lastGood = snap.at
       const lid = Math.max(snap.blinkL ?? 0, snap.blinkR ?? 0)
       if (configuring) {
-        if (lid > 0.55) { samples = []; collectAt = 0; setProgress(0); setStatus('Open your eyes to continue setup'); return }
+        if (lid > 0.55) { samples = []; collectAt = 0; setProgress(0); setStatus('Open your eyes to keep going'); return }
         collectAt ||= now
         setStatus(`Look ${calibrationDirection === 'center' ? 'at the center' : calibrationDirection} and hold your head still`)
         if (now - collectAt < 850) return
@@ -102,15 +102,15 @@ export default function EyeRemote({ eye, root, screenKey }: {
         const median = medianFeatures(samples)
         const noise = Math.max(...median.map((v, i) =>
           Math.sqrt(samples.reduce((s, f) => s + (f[i] - v) ** 2, 0) / samples.length)))
-        if (noise > 0.018) { samples = []; collectAt = now; setStatus('Hold steady. Retrying this direction.'); return }
+        if (noise > 0.018) { samples = []; collectAt = now; setStatus('Hold still, trying that one again'); return }
         templates.current[calibrationDirection] = median
         if (step < 5) { setProgress(0); setStep(step + 1) }
         else {
           const candidate = templates.current as RemoteProfile
           if (!profileValid(candidate) || DIRECTIONS.some((d) => classifyDirection(candidate, candidate[d]) !== d)) {
-            setStep(-1); setStatus('Directions overlapped. Try setup again with slightly larger eye movements.'); return
+            setStep(-1); setStatus("Couldn't tell the directions apart. Try again and move your eyes a bit further."); return
           }
-          setProfile({ ...candidate }); setStep(-1); setStatus('Remote ready. Look in a direction to move.')
+          setProfile({ ...candidate }); setStep(-1); setStatus('Ready. Look left, right, up or down to move.')
         }
         return
       }
@@ -120,12 +120,12 @@ export default function EyeRemote({ eye, root, screenKey }: {
         selected.current.click()
         cooldown = now + 1200
         repeat.reset()
-        setStatus('Selected. Ready again in a moment.')
+        setStatus('Done. Wait a second before the next one.')
         return
       }
       if (lid > 0.55 || now < cooldown) {
         repeat.reset(); featureWindow = []
-        if (lid > 0.55) setStatus('Eyes closing. Movement paused.')
+        if (lid > 0.55) setStatus('Eyes closed, holding still')
         return
       }
       featureWindow.push(snap.features!.slice(0, 4))
@@ -134,7 +134,7 @@ export default function EyeRemote({ eye, root, screenKey }: {
       const direction = signal.direction
       setDetected(direction)
       setStrength(Math.round(Math.min(1, signal.strength) * 100))
-      setStatus(direction === 'center' ? 'Ready · hold a blink to select' : `${SYMBOLS[direction]} Moving ${direction} · center stops`)
+      setStatus(direction === 'center' ? 'Ready. Close your eyes to pick.' : `${SYMBOLS[direction]} Moving ${direction}. Look at the middle to stop.`)
       const move = repeat.update(direction, now)
       if (move) navigate(move, now)
     }
@@ -158,12 +158,12 @@ export default function EyeRemote({ eye, root, screenKey }: {
       <button type="button" className="home-btn" onClick={start} disabled={eye.status !== 'ready'}>{profile ? 'Reset directions' : 'Set up remote'}</button>
       {profile && <button type="button" className="home-btn" onClick={() => setPaused((v) => !v)}>{paused ? 'Resume' : 'Pause'}</button>}
       {profile && <button type="button" className="home-btn" onClick={() => { templates.current = { ...profile }; setPaused(false); setProgress(0); setStep(5) }}>Re-center</button>}
-      {!profile && !configuring && <p>Look in a direction to move one card. Keep looking to repeat. Center stops. Close both eyes for about half a second, then open to select. Arrow keys and Enter also work.</p>}
+      {!profile && !configuring && <p>Look left, right, up or down to move between cards, and back at the middle to stop. Close your eyes for half a second to pick a card. Arrow keys and Enter work too.</p>}
       {eye.status === 'error' && <p>{eye.error}</p>}
     </div>
     {configuring && <div className={`eye-remote remote-setup setup-${calibrationDirection}`} role="dialog" aria-modal="true" aria-label="Set up eye remote">
-      <div className="remote-setup-copy"><strong>{step === 5 ? 'Return to center · ready to use' : `Direction ${step + 1} of 5`}</strong><p>{status}</p><p>Move your eyes toward the symbol. Keep your head comfortable and still.</p>
-        <progress value={progress} max={1} /><button type="button" className="home-btn" onClick={() => { setStep(-1); setStatus('Setup cancelled. Tap Set up remote to try again.') }}>Cancel setup</button></div>
+      <div className="remote-setup-copy"><strong>{step === 5 ? 'Now look at the middle' : `Direction ${step + 1} of 5`}</strong><p>{status}</p><p>Move your eyes toward the symbol. Keep your head comfortable and still.</p>
+        <progress value={progress} max={1} /><button type="button" className="home-btn" onClick={() => { setStep(-1); setStatus('Cancelled') }}>Cancel setup</button></div>
       <div className={`remote-dot remote-dot-${calibrationDirection}`}>{SYMBOLS[calibrationDirection]}</div>
     </div>}
   </>

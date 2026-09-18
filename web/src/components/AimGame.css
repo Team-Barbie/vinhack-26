@@ -98,10 +98,8 @@
   background: rgba(8, 8, 8, 0.78);
   color: var(--danger);
   font-size: 0.7rem;
-  font-weight: 800;
-  letter-spacing: 0.08em;
+  font-weight: 700;
   pointer-events: none;
-  text-transform: uppercase;
 }
 
 .eye-lock-label.is-locked {
@@ -113,14 +111,12 @@
 .aim-eyebrow {
   color: var(--text-dim);
   font-size: 0.78rem;
-  font-weight: 800;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
+  font-weight: 700;
 }
 
 .aim-title {
   font-size: clamp(2rem, 4.6vw, 3rem);
-  letter-spacing: -0.04em;
+  letter-spacing: -0.02em;
   line-height: 1.05;
 }
 
@@ -182,7 +178,7 @@
   box-shadow: inset 0 1px 0 var(--glass-sheen);
   color: var(--text);
   font-size: 1.02rem;
-  font-weight: 800;
+  font-weight: 700;
   transition: background var(--fast) var(--ease), transform var(--fast) var(--ease),
     opacity var(--fast) var(--ease);
 }
@@ -459,9 +455,7 @@
 .aim-hud-label {
   color: var(--muted);
   font-size: 0.68rem;
-  font-weight: 800;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
+  font-weight: 700;
 }
 
 .aim-hud-value {
@@ -547,7 +541,7 @@
   border-radius: var(--r-pill);
   background: var(--danger-tint);
   color: var(--danger);
-  font-weight: 800;
+  font-weight: 700;
   transform: translateX(-50%);
   pointer-events: none;
 }

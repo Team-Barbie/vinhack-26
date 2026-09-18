@@ -20,7 +20,7 @@ export default function Home({ onSelect }: { onSelect: (destination: Destination
           <span className="home-choice-body">
             <span className="home-choice-title">Patient Board</span>
             <span className="home-choice-desc">
-              Ask for water, a nurse, or a change of position. Answer yes or no. Build short sentences.
+              Ask for water, a nurse, or a change of position. Answer yes or no.
             </span>
           </span>
         </button>

@@ -93,7 +93,7 @@
   border-radius: var(--r-md);
   background: var(--glass-tint);
   color: var(--text-dim);
-  font-weight: 800;
+  font-weight: 700;
   transition: background var(--fast) var(--ease), border-color var(--fast) var(--ease),
     color var(--fast) var(--ease), transform var(--fast) var(--ease);
 }
@@ -153,9 +153,7 @@
 .gaze-setup-eyebrow {
   color: var(--tone-up);
   font-size: 0.8rem;
-  font-weight: 900;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
+  font-weight: 700;
 }
 
 .gaze-setup-camera {
@@ -180,7 +178,7 @@
   min-height: 54px;
   padding: 0 22px;
   border-radius: var(--r-pill);
-  font-weight: 900;
+  font-weight: 700;
 }
 
 .gaze-setup-primary {
@@ -217,7 +215,7 @@
   border-radius: var(--r-pill);
   background: var(--glass-tint);
   color: var(--text-dim);
-  font-weight: 800;
+  font-weight: 700;
 }
 
 .gaze-back {
@@ -258,7 +256,7 @@
   border-radius: var(--r-md);
   background: rgba(107, 217, 143, 0.1);
   color: var(--tone-up);
-  font-weight: 800;
+  font-weight: 700;
   text-align: center;
 }
 
@@ -305,7 +303,7 @@
 .gaze-direction {
   color: var(--text);
   font-size: 1.15rem;
-  font-weight: 900;
+  font-weight: 700;
   text-align: center;
 }
 
