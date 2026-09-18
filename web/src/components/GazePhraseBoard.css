@@ -14,6 +14,19 @@
   pointer-events: none;
 }
 
+.gaze-debug-point {
+  position: fixed;
+  z-index: 20;
+  width: 24px;
+  height: 24px;
+  margin: -12px 0 0 -12px;
+  border: 3px solid #ffffff;
+  border-radius: 50%;
+  background: rgba(107, 217, 143, 0.45);
+  box-shadow: 0 0 0 7px rgba(107, 217, 143, 0.14), 0 0 22px rgba(107, 217, 143, 0.8);
+  pointer-events: none;
+}
+
 .gaze-phrase-setup {
   display: grid;
   place-items: center;

@@ -75,9 +75,11 @@ export default function GazePhraseBoard() {
   const [progress, setProgress] = useState(0)
   const [lastSpoken, setLastSpoken] = useState('')
   const [awaitingNeutral, setAwaitingNeutral] = useState(false)
+  const [gazePoint, setGazePoint] = useState<{ x: number; y: number } | null>(null)
   const dwellRef = useRef<{ zone: GazeZone | null; startedAt: number }>({ zone: null, startedAt: 0 })
   const lockedRef = useRef(false)
   const needsNeutralRef = useRef(false)
+  const blinkPausedAtRef = useRef<number | null>(null)
   const [leftChoices, rightChoices] = useMemo(() => splitPhrases(choices), [choices])
 
   const reset = useCallback(() => {
@@ -149,7 +151,26 @@ export default function GazePhraseBoard() {
       const frame = snapshotRef.current
       let zone: GazeZone | null = null
 
-      if (frame.faceFound && frame.screen && !frame.eyesClosed) {
+      if (frame.faceFound && frame.screen) {
+        setGazePoint(frame.screen)
+      } else {
+        setGazePoint(null)
+      }
+
+      // Keep the highlighted zone while the eyes are closed. BlinkDetector
+      // fires on reopen, so clearing it here would leave nothing to confirm.
+      if (frame.eyesClosed) {
+        blinkPausedAtRef.current ??= performance.now()
+        return
+      }
+
+      if (blinkPausedAtRef.current !== null) {
+        const pausedFor = performance.now() - blinkPausedAtRef.current
+        dwellRef.current.startedAt += pausedFor
+        blinkPausedAtRef.current = null
+      }
+
+      if (frame.faceFound && frame.screen) {
         if (frame.screen.y < window.innerHeight * 0.16) zone = 'back'
         else if (frame.screen.x < window.innerWidth * 0.43) zone = 'left'
         else if (frame.screen.x > window.innerWidth * 0.57) zone = 'right'
@@ -252,6 +273,12 @@ export default function GazePhraseBoard() {
         ? 'Calibrate in Aim Trainer to enable gaze'
         : awaitingNeutral
           ? 'Return your gaze to the center'
+        : activeZone === 'left'
+          ? 'Left highlighted · blink to select'
+          : activeZone === 'right'
+            ? 'Right highlighted · blink to select'
+            : activeZone === 'back'
+              ? 'Back highlighted · blink to select'
         : faceFound
           ? 'Look to highlight · blink or dwell to select'
           : 'Looking for your face'
@@ -259,6 +286,13 @@ export default function GazePhraseBoard() {
   return (
     <section className="gaze-phrase-board" aria-label="Gaze phrase selector">
       <video ref={videoRef} className="gaze-camera" muted playsInline aria-hidden="true" />
+      {inputMode === 'gaze' && gazePoint && (
+        <span
+          className="gaze-debug-point"
+          style={{ left: gazePoint.x, top: gazePoint.y }}
+          aria-hidden="true"
+        />
+      )}
 
       <div className="gaze-phrase-toolbar">
         <button type="button" className={`gaze-back ${activeZone === 'back' ? 'dwelling' : ''}`} onClick={goBack} disabled={history.length === 0}>
