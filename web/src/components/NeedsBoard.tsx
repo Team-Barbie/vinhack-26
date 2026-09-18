@@ -53,7 +53,6 @@ export default function NeedsBoard() {
   const [screen, setScreen] = useState<Screen>('urgent')
   const [phrase, setPhrase] = useState<NeedTile[]>([])
   const [answerFlash, setAnswerFlash] = useState<'yes' | 'no' | null>(null)
-  const [isSpeaking, setIsSpeaking] = useState(false)
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const audioQueueRef = useRef<string[]>([])
   const playNextRef = useRef<() => void>(() => undefined)
@@ -72,19 +71,14 @@ export default function NeedsBoard() {
 
     playNextRef.current = () => {
       const clipId = audioQueueRef.current.shift()
-      if (!clipId) {
-        setIsSpeaking(false)
-        return
-      }
+      if (!clipId) return
 
       audio.src = `/audio/${clipId}.wav`
       audio.currentTime = 0
       audio.muted = false
       audio.volume = 1
       audio.load()
-      setIsSpeaking(true)
       void audio.play().catch(() => {
-        setIsSpeaking(false)
         audioQueueRef.current = []
       })
     }
@@ -94,13 +88,10 @@ export default function NeedsBoard() {
 
   const addTile = (tile: NeedTile) => {
     setPhrase((prev) => [...prev, tile])
+    playAudioClips([tile.id])
   }
 
   const clear = () => setPhrase([])
-
-  const speakPhrase = () => {
-    playAudioClips(phrase.map((tile) => tile.id))
-  }
 
   const answer = (value: 'yes' | 'no') => {
     playAudioClips([`answer-${value}`])
@@ -179,15 +170,6 @@ export default function NeedsBoard() {
           )}
         </div>
         <div className="phrase-actions">
-          <button
-            type="button"
-            className={`phrase-btn speak ${isSpeaking ? 'is-speaking' : ''}`}
-            onClick={speakPhrase}
-            disabled={phrase.length === 0}
-            aria-pressed={isSpeaking}
-          >
-            {isSpeaking ? '🔊 Speaking…' : '🔊 Speak'}
-          </button>
           <button
             type="button"
             className="phrase-btn clear"
