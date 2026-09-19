@@ -78,7 +78,7 @@ function nurseTime() {
   return new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
 }
 
-export default function NeedsBoard({ onExit, onRecalibrate }: { onExit: () => void; onRecalibrate: () => void }) {
+export default function NeedsBoard({ onRecalibrate }: { onRecalibrate: () => void }) {
   const eye = useEye()
   const [screen, setScreen] = useState<Screen>('main')
   const boardRef = useRef<HTMLDivElement | null>(null)
@@ -119,9 +119,6 @@ export default function NeedsBoard({ onExit, onRecalibrate }: { onExit: () => vo
     <div ref={boardRef} className={`needs-board screen-${screen} has-eye-remote`}>
       {pager && <div className="pager-banner" role="status">{pager}</div>}
       <div className="board-nav">
-        <button type="button" className="home-btn" onClick={onExit}>
-          Home
-        </button>
         <button type="button" className="home-btn" onClick={onRecalibrate}>
           Calibrate again
         </button>
