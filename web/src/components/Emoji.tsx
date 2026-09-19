@@ -19,7 +19,7 @@ function shapeFor(char: string): ReactNode {
     case '🔌': return <><rect x="4" y="2" width="10" height="17" rx="2" /><path d="M8 16h2M14 9h2a4 4 0 0 1 4 4v4M18 17h4M19 17v3M21 17v3" /></>
     case '💡': return <><path d="M8 15a6 6 0 1 1 8 0l-1 2H9l-1-2ZM9 20h6" /></>
     case '😴': return <><path d="M19 14a7 7 0 1 1-9-9 8 8 0 0 0 9 9Z" /><path d="M16 4h4l-4 4h4" /></>
-    case '🙋': return <><circle cx="12" cy="6" r="2.5" /><path d="M7 21v-5a5 5 0 0 1 10 0v5M9 21v-5M15 21v-5M8.5 13 5 9V4M5 4 3.5 6M5 4l1.5 2" /></>
+    case '🙋': return <><path d="M2 3h3v7c0 2 1 4 3 5l2 1-2-4c-.4-1 .1-2 1.1-2.4 1-.4 2 .2 2.4 1.2l1.6 4.3c.4 1.1.1 2.4-.7 3.2L9 21.7H6c0-1.9-.8-3.5-2.2-4.8A9.4 9.4 0 0 1 2 11V3ZM22 3h-3v7c0 2-1 4-3 5l-2 1 2-4c.4-1-.1-2-1.1-2.4-1-.4-2 .2-2.4 1.2l-1.6 4.3c-.4 1.1-.1 2.4.7 3.2l3.4 3.4h3c0-1.9.8-3.5 2.2-4.8A9.4 9.4 0 0 0 22 11V3Z" fill="currentColor" stroke="none" /></>
     case '✋': return <><path d="M7 3h10l4 4v10l-4 4H7l-4-4V7l4-4Z" /><path d="M8 12h8" /></>
     case '➕': return <><path d="M12 4v16M4 12h16" /></>
     case '✅': return <><circle cx="12" cy="12" r="9" /><path d="m8 12 3 3 6-7" /></>
@@ -33,10 +33,10 @@ function shapeFor(char: string): ReactNode {
     case '😣': return <><circle cx="12" cy="12" r="9" /><path d="m7 9 3 2M17 9l-3 2M8 17c2-2 6-2 8 0" /></>
     case '🚨': return <><path d="M6 17h12l-1-8a5 5 0 0 0-10 0l-1 8ZM4 21h16M12 1v3M3 7l2 1M21 7l-2 1" /></>
     case '🫁': return <><path d="M11 11V4M13 11V4M11 10c-2-3-5-2-6 1l-1 7c3 2 7 1 7-3v-5ZM13 10c2-3 5-2 6 1l1 7c-3 2-7 1-7-3v-5Z" /></>
-    case '🤢': return <><circle cx="12" cy="12" r="9" /><path d="M8 9h.01M16 9h.01M8 16c2-2 6-2 8 0M7 19l2-2M17 17l2 2" /></>
+    case '🤢': return <><circle cx="10" cy="11" r="7" /><path d="M7 9h.01M13 9h.01M7.5 15c1.5-1.5 3.5-1.5 5 0" /><path d="M18 14V5a2 2 0 0 1 4 0v9a4 4 0 1 1-4 0ZM20 17V9" /></>
     case '🩸': return <><path d="M12 3s-5 6-5 10a5 5 0 0 0 10 0c0-4-5-10-5-10Z" /><path d="M12 10v6M9 13h6" /></>
-    case '😵‍💫': return <><circle cx="12" cy="12" r="9" /><path d="m7 8 3 2M10 8 7 10M14 8l3 2M17 8l-3 2M8 16c3 2 5-2 8 0" /></>
-    case '🤒': return <><circle cx="12" cy="12" r="9" /><path d="M8 9h.01M14 9h.01M8 16h5M17 11v7M15 16h4" /></>
+    case '😵‍💫': return <><circle cx="12" cy="13" r="7.5" /><path d="M7.5 11.5c0-2.4 3.5-2.4 3.5 0 0 1.8-2.8 2-3.3.8M16.5 11.5c0-2.4-3.5-2.4-3.5 0 0 1.8 2.8 2 3.3.8M9.5 17h5" /><path d="M6 2.5v3M4.5 4h3M18 2.5v3M16.5 4h3M12 1v2.5" /></>
+    case '🤒': return <><circle cx="9" cy="5" r="2.5" /><path d="M4 21v-5a5 5 0 0 1 10 0v5M7 21v-5M11 21v-5" /><circle cx="18" cy="10" r="4" /><path d="M18 8v3M18 12.5h.01" /></>
     default: return <circle cx="12" cy="12" r="7" />
   }
 }
