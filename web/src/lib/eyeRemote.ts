@@ -101,11 +101,14 @@ export class DirectionHold {
   private held: Direction = 'center'
   private pending: Direction = 'center'
   private pendingAt = 0
-  constructor(
-    private returnMs = 200,
-    private leaveCenterMs = 80,
-    private changeMs = 70,
-  ) {}
+  private returnMs: number
+  private leaveCenterMs: number
+  private changeMs: number
+  constructor(returnMs = 200, leaveCenterMs = 80, changeMs = 70) {
+    this.returnMs = returnMs
+    this.leaveCenterMs = leaveCenterMs
+    this.changeMs = changeMs
+  }
   get value(): Direction { return this.held }
   reset(): void { this.held = 'center'; this.pending = 'center'; this.pendingAt = 0 }
   update(raw: Direction, now: number): Direction {
