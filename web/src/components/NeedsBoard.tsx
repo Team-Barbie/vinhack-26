@@ -20,7 +20,6 @@ const MAIN_TILES: NeedTile[] = [
   { id: 'nurse', icon: '🔔', label: 'Call a nurse', phrase: 'I need a nurse' },
   { id: 'water', icon: '💧', label: 'Water', phrase: 'I need drinking water' },
   { id: 'bathroom', icon: '🚻', label: 'Bathroom', phrase: 'I need help using the bathroom' },
-  { id: 'move', icon: '🦽', label: 'Help me move', phrase: 'Help me sit up, stand, or move' },
   { id: 'medicine', icon: '💊', label: 'Medicine', phrase: 'I need to discuss medication or pain' },
   { id: 'pain', icon: '🤕', label: "I'm in pain", phrase: 'I am experiencing discomfort' },
   { id: 'food', icon: '🍽️', label: 'Food', phrase: 'I need food or meal assistance' },
@@ -207,7 +206,10 @@ export default function NeedsBoard({ onExit, onRecalibrate }: { onExit: () => vo
                 onClick={() => activateTile(tile)}
               >
                 <Emoji char={tile.icon} className="need-icon" />
-                <span className="need-label">{tile.label}</span>
+                <span className="need-copy">
+                  <strong className="need-label">{tile.label}</strong>
+                  <small className="need-phrase">{tile.phrase}</small>
+                </span>
               </button>
             ))}
           </div>
