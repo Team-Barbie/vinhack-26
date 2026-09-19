@@ -1,0 +1,15 @@
+.logo-reveal {
+  display: grid;
+  place-items: center;
+  min-height: 100svh;
+  background: #000;
+  cursor: pointer;
+}
+
+.logo-reveal-video {
+  display: block;
+  width: 100%;
+  max-height: 100svh;
+  object-fit: contain;
+  pointer-events: none;
+}
