@@ -106,7 +106,9 @@ export default function NeedsBoard({ onExit, onRecalibrate }: { onExit: () => vo
   }
 
   const answer = (value: 'yes' | 'no') => {
-    speak(value === 'yes' ? 'Yes' : 'No')
+    const message = value === 'yes' ? 'Yes' : 'No'
+    speak(message)
+    setSpokenMessage(message)
     setAnswerFlash(value)
     window.setTimeout(() => setAnswerFlash((current) => (current === value ? null : current)), 500)
   }
