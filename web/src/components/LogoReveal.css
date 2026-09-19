@@ -13,3 +13,7 @@
   object-fit: contain;
   pointer-events: none;
 }
+
+body:has(.logo-reveal) .tracker-cam {
+  visibility: hidden;
+}
