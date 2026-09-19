@@ -1,5 +1,6 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useEye } from '../hooks/EyeTrackerProvider'
+import { playAlertBeep } from '../lib/alert'
 import { speak } from '../lib/speech'
 import GazePhraseBoard from './GazePhraseBoard'
 import Emoji from './Emoji'
@@ -14,7 +15,7 @@ interface NeedTile {
   instant?: boolean
 }
 
-type Screen = 'main' | 'quick' | 'gaze' | 'more' | 'urgent'
+type Screen = 'main' | 'quick' | 'gaze' | 'more'
 type TalkLayer = 'answer' | 'more'
 
 const MAIN_TILES: NeedTile[] = [
@@ -67,26 +68,20 @@ const TALK_MORE: NeedTile[] = [
   { id: 'finished', icon: '✅', label: "I'm done talking", phrase: 'I am finished talking', instant: true },
 ]
 
-const URGENT_TILES: NeedTile[] = [
-  { id: 'emergency', icon: '🚨', label: 'Get help now', phrase: 'I need immediate assistance' },
-  { id: 'breathing', icon: '🫁', label: "Can't breathe well", phrase: "I'm having difficulty breathing" },
-  { id: 'nauseous', icon: '🤢', label: 'I feel sick', phrase: 'I feel like vomiting' },
-  { id: 'bleeding', icon: '🩸', label: 'Bleeding', phrase: 'I need help with bleeding' },
-  { id: 'dizzy', icon: '😵‍💫', label: 'Dizzy or faint', phrase: 'I feel dizzy or faint' },
-  { id: 'unwell', icon: '🤒', label: 'Something feels off', phrase: 'Something feels wrong' },
-]
-
 const SCREENS: Record<Screen, { title: string; tiles: NeedTile[] }> = {
   main: { title: 'What do you need?', tiles: MAIN_TILES },
   quick: { title: 'Nurse: ask a question', tiles: TALK_STEER },
   gaze: { title: 'Phrases', tiles: [] },
   more: { title: 'Other requests', tiles: MORE_TILES },
-  urgent: { title: 'Something is wrong', tiles: URGENT_TILES },
 }
 
-const PAGER_IDS = new Set(['nurse', 'emergency', 'breathing', 'nauseous', 'bleeding', 'dizzy', 'unwell'])
+const PAGER_IDS = new Set(['nurse'])
 const COOLDOWN_MS = 1300
 const TRANSCRIPT_LIMIT = 8
+const EYES_CLOSED_MS = 3000
+const CHECKIN_IGNORE_MS = 4000
+const LID_CLOSED = 0.42
+const LID_OPEN = 0.22
 
 function nurseTime() {
   return new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
@@ -102,7 +97,12 @@ export default function NeedsBoard({ onRecalibrate }: { onRecalibrate: () => voi
   const [spokenMessage, setSpokenMessage] = useState('')
   const [transcript, setTranscript] = useState<string[]>([])
   const [pager, setPager] = useState('')
+  const [alerting, setAlerting] = useState(false)
+  const [checkin, setCheckin] = useState(false)
   const coolUntil = useRef(0)
+  const closedSince = useRef(0)
+  const ignoreUntil = useRef(0)
+  const checkinRef = useRef(false)
 
   const flashTile = (id: string, ms: number) => {
     setSpokenTile(id)
@@ -140,12 +140,73 @@ export default function NeedsBoard({ onRecalibrate }: { onRecalibrate: () => voi
     setScreen('quick')
   }
 
+  const raiseNurse = () => {
+    playAlertBeep()
+    setPager(`Nurse alerted at ${nurseTime()}`)
+    setAlerting(true)
+    window.setTimeout(() => setAlerting(false), 1600)
+  }
+
+  const callEmergency = () => {
+    if (performance.now() < coolUntil.current) return
+    coolUntil.current = performance.now() + COOLDOWN_MS
+    raiseNurse()
+  }
+
+  const closeCheckin = (ms = CHECKIN_IGNORE_MS) => {
+    checkinRef.current = false
+    setCheckin(false)
+    closedSince.current = 0
+    ignoreUntil.current = performance.now() + ms
+  }
+
+  const sayOkay = () => {
+    speak("I'm okay")
+    rememberLine("I'm okay")
+    closeCheckin()
+  }
+
+  const sayNeedHelp = () => {
+    speak('I need help')
+    rememberLine('I need help')
+    raiseNurse()
+    closeCheckin(8000)
+  }
+
+  useEffect(() => {
+    let raf = 0
+    const tick = () => {
+      raf = requestAnimationFrame(tick)
+      const now = performance.now()
+      if (checkinRef.current || now < ignoreUntil.current) {
+        closedSince.current = 0
+        return
+      }
+      const snap = eye.snapshotRef.current
+      const score = Math.max(snap.blinkL ?? 0, snap.blinkR ?? 0)
+      const closed = snap.eyesClosed || score > LID_CLOSED || (!snap.detectedFace && closedSince.current > 0)
+      if (closed) {
+        if (!closedSince.current) closedSince.current = now
+        if (now - closedSince.current >= EYES_CLOSED_MS) {
+          closedSince.current = 0
+          checkinRef.current = true
+          setCheckin(true)
+          speak('Are you okay?')
+        }
+        return
+      }
+      if (snap.detectedFace && score < LID_OPEN) closedSince.current = 0
+    }
+    raf = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(raf)
+  }, [eye.snapshotRef])
+
   const { title, tiles } = SCREENS[screen]
   const talking = screen === 'quick'
   const talkTiles = talkLayer === 'more' ? TALK_MORE : TALK_STEER
 
   return (
-    <div ref={boardRef} className={`needs-board screen-${screen} has-eye-remote`}>
+    <div ref={boardRef} className={`needs-board screen-${screen} has-eye-remote${checkin ? ' is-checkin' : ''}`}>
       {pager && <div className="pager-banner" role="status">{pager}</div>}
       <div className="board-nav">
         <button type="button" className="home-btn" onClick={onRecalibrate}>
@@ -183,14 +244,31 @@ export default function NeedsBoard({ onRecalibrate }: { onRecalibrate: () => voi
         </div>
         <button
           type="button"
-          className={`emergency-btn ${screen === 'urgent' ? 'active' : ''}`}
-          onClick={() => setScreen('urgent')}
+          className={`emergency-btn ${alerting ? 'active' : ''}`}
+          onClick={callEmergency}
         >
           Emergency
         </button>
       </div>
 
-      <EyeRemote eye={eye} root={boardRef} screenKey={`${screen}:${talking ? talkLayer : 'grid'}`} />
+      <EyeRemote eye={eye} root={boardRef} screenKey={`${screen}:${talking ? talkLayer : 'grid'}:${checkin ? 'checkin' : 'live'}`} />
+      {checkin && (
+        <div className="eyes-checkin" role="alertdialog" aria-modal="true" aria-labelledby="eyes-checkin-title">
+          <div className="eyes-checkin-card">
+            <p className="eyes-checkin-kicker">Eyes closed</p>
+            <h2 id="eyes-checkin-title" className="eyes-checkin-title">Are you okay?</h2>
+            <p className="eyes-checkin-copy">Look at an answer and blink. If you need help, a nurse will be flagged.</p>
+            <div className="eyes-checkin-actions">
+              <button type="button" className="talk-answer talk-yes answer-btn answer-yes" onClick={sayOkay}>
+                I'm okay
+              </button>
+              <button type="button" className="talk-answer talk-no answer-btn emergency-btn" onClick={sayNeedHelp}>
+                I need help
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {screen !== 'gaze' && !talking && (
         <div className="quick-answer">
           <span className="quick-answer-label">Answer a question</span>

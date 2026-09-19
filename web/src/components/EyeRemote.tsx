@@ -67,8 +67,12 @@ export default function EyeRemote({ eye, root, screenKey }: {
       selected.current = null
     }
 
-    const buttons = () => Array.from(root.current?.querySelectorAll<HTMLButtonElement>('button:not(:disabled)') ?? [])
-      .filter((b) => !b.closest('.eye-remote') && b.getBoundingClientRect().width > 0)
+    const buttons = () => {
+      const board = root.current
+      const checkin = board?.classList.contains('is-checkin')
+      return Array.from(board?.querySelectorAll<HTMLButtonElement>('button:not(:disabled)') ?? [])
+        .filter((b) => !b.closest('.eye-remote') && (!checkin || b.closest('.eyes-checkin')) && b.getBoundingClientRect().width > 0)
+    }
     const mark = (button: HTMLButtonElement, _now: number, scroll = true) => {
       selected.current?.classList.remove('remote-focused')
       selected.current = button

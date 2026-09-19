@@ -267,6 +267,70 @@
   box-shadow: 0 0 0 3px rgba(235, 72, 77, 0.25), 0 12px 32px -12px rgba(235, 72, 77, 0.6);
 }
 
+.eyes-checkin {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(6, 6, 6, 0.78);
+}
+
+.eyes-checkin-card {
+  display: grid;
+  gap: 16px;
+  width: min(640px, 100%);
+  padding: 36px 32px 28px;
+  border: 1px solid var(--glass-border);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-float);
+  text-align: center;
+}
+
+.eyes-checkin-kicker {
+  margin: 0;
+  color: var(--emergency);
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.eyes-checkin-title {
+  margin: 0;
+  font-size: clamp(2rem, 5vw, 3rem);
+  letter-spacing: -0.03em;
+}
+
+.eyes-checkin-copy {
+  margin: 0;
+  color: var(--text-dim);
+  font-size: 1.05rem;
+  line-height: 1.45;
+}
+
+.eyes-checkin-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  margin-top: 8px;
+}
+
+.eyes-checkin-actions .talk-answer {
+  min-height: 132px;
+  font-size: clamp(1.4rem, 3vw, 2rem);
+}
+
+.eyes-checkin-actions .emergency-btn {
+  min-height: 132px;
+  width: 100%;
+  justify-content: center;
+  border-radius: var(--r-lg);
+  font-size: clamp(1.4rem, 3vw, 2rem);
+}
+
 /* ---------- Quick answer ---------- */
 
 .quick-answer {
