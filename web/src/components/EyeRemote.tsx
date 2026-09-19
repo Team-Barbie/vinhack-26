@@ -84,6 +84,38 @@ export default function EyeRemote({ eye, root, screenKey }: {
         if (initial) mark(initial, now, Boolean(profile))
         return
       }
+      const current = selected.current
+      const center = (button: HTMLButtonElement) => {
+        const rect = button.getBoundingClientRect()
+        return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 }
+      }
+      const nearestByX = (choices: HTMLButtonElement[]) => {
+        const fromX = center(current).x
+        return choices.sort((a, b) => Math.abs(center(a).x - fromX) - Math.abs(center(b).x - fromX))[0]
+      }
+
+      // The answer bar is narrower than the card grid. Pure geometric navigation
+      // otherwise skips it from an outside column and jumps to the top nav.
+      if (direction === 'up' && current.classList.contains('need-tile')) {
+        const currentY = center(current).y
+        const cardAbove = controls.some((button) =>
+          button.classList.contains('need-tile') && center(button).y < currentY - 8,
+        )
+        if (!cardAbove) {
+          const answer = nearestByX(controls.filter((button) => button.classList.contains('answer-btn')))
+          if (answer) { mark(answer, now); return }
+        }
+      }
+      if (direction === 'down' && current.classList.contains('answer-btn')) {
+        const firstRowY = Math.min(...controls
+          .filter((button) => button.classList.contains('need-tile'))
+          .map((button) => center(button).y))
+        const firstRow = controls.filter((button) =>
+          button.classList.contains('need-tile') && Math.abs(center(button).y - firstRowY) < 8,
+        )
+        const card = nearestByX(firstRow)
+        if (card) { mark(card, now); return }
+      }
       const items = controls.map((b) => {
         b.dataset.remoteId ??= `eye-control-${++idCounter.current}`
         const r = b.getBoundingClientRect()

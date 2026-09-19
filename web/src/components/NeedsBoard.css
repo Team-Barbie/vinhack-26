@@ -289,8 +289,10 @@
 }
 
 .quick-answer-buttons {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 16px;
+  width: min(100%, 920px);
 }
 
 .speech-status {
@@ -307,7 +309,7 @@
   justify-content: center;
   gap: 12px;
   flex: 0 1 auto;
-  width: 260px;
+  width: 100%;
   min-width: 120px;
   min-height: 92px;
   padding: 0 34px;
