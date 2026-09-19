@@ -175,7 +175,8 @@ button:disabled {
    background on them, so hover and highlight states keep their dots. */
 .need-tile,
 .home-choice,
-.gaze-choice {
+.gaze-choice,
+.answer-btn {
   --fill: #181818;
   --dot: rgba(255, 255, 255, 0.17);
   background-color: var(--fill);

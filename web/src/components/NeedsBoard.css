@@ -299,19 +299,20 @@
 .answer-yes,
 .answer-no {
   border: 1px solid var(--glass-border);
-  background: var(--glass-tint);
+  background-color: var(--fill);
   color: var(--text);
 }
 
 .answer-yes:hover,
 .answer-no:hover {
-  background: var(--glass-tint-strong);
+  --fill: #242424;
 }
 
 .answer-yes.flash,
 .answer-no.flash {
+  --fill: var(--accent);
+  --dot: rgba(10, 10, 10, 0.2);
   border-color: var(--accent);
-  background: var(--accent);
   color: var(--accent-ink);
 }
 
@@ -376,7 +377,7 @@
 
 .need-tile.spoken .need-icon {
   border-color: rgba(0, 0, 0, 0.24);
-  background: rgba(0, 0, 0, 0.07);
+  background-color: var(--fill);
   color: var(--accent-ink);
 }
 
@@ -394,7 +395,7 @@
   padding: 16px;
   border: 1px solid var(--line-strong);
   border-radius: 20px;
-  background: rgba(255, 255, 255, 0.045);
+  background-color: var(--fill);
   color: var(--text);
   stroke-width: 1.8;
 }
