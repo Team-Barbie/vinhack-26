@@ -10,11 +10,12 @@ type View = 'intro' | 'home' | Destination
 
 function Shell() {
   const [view, setView] = useState<View>('intro')
-  const goHome = () => setView('home')
+  const goHome = () => setView('intro')
+  const openChoices = () => setView('home')
   const recalibrate = () => setView('calibrate')
 
   if (view === 'intro') return <RemoteIntro onCalibrate={recalibrate} />
-  if (view === 'calibrate') return <CalibrationFlow onDone={goHome} />
+  if (view === 'calibrate') return <CalibrationFlow onDone={openChoices} />
   if (view === 'board') return <NeedsBoard onExit={goHome} onRecalibrate={recalibrate} />
   if (view === 'privacy') return <Privacy onExit={goHome} />
   if (view === 'terms') return <Terms onExit={goHome} />
