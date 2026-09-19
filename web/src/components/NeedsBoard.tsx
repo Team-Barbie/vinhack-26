@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useEye } from '../hooks/EyeTrackerProvider'
-import { playAlertBeep } from '../lib/alert'
+import { playAlertBeep, unlockAlertAudio } from '../lib/alert'
 import { speak } from '../lib/speech'
 import GazePhraseBoard from './GazePhraseBoard'
 import Emoji from './Emoji'
@@ -141,15 +141,14 @@ export default function NeedsBoard({ onRecalibrate }: { onRecalibrate: () => voi
   }
 
   const raiseNurse = () => {
-    playAlertBeep()
+    void playAlertBeep()
     setPager(`Nurse alerted at ${nurseTime()}`)
     setAlerting(true)
-    window.setTimeout(() => setAlerting(false), 1600)
+    window.setTimeout(() => setAlerting(false), 2400)
   }
 
   const callEmergency = () => {
-    if (performance.now() < coolUntil.current) return
-    coolUntil.current = performance.now() + COOLDOWN_MS
+    unlockAlertAudio()
     raiseNurse()
   }
 
