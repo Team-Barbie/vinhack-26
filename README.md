@@ -12,6 +12,31 @@ VisionLoop is a webcam-based communication prototype with a patient needs board 
 | **Standalone trainer** | Root (`src/`) | Standalone aim trainer with calibration, diagnostics, and blink or dwell firing |
 | **Python tracker** | `main.py`, `eye_tracking/` | Desktop webcam demo with tracking overlays |
 
+## How the main app works
+
+The primary VisionLoop application lives in `web/`. Its high-level flow is:
+
+```mermaid
+flowchart TD
+    A[Open React app] --> B[Request webcam access]
+    B --> C[MediaPipe detects face, iris, and blinks]
+    C --> D[One-time gaze calibration]
+    D --> E[Save calibration in localStorage]
+    E --> F[Patient Board]
+
+    F --> G[Look toward a direction]
+    G --> H[Highlight the matching button]
+    H --> I[Blink to select]
+    I --> J{Selected feature}
+
+    J -->|Need or Emergency| K[Speak request aloud]
+    J -->|Yes or No| L[Speak answer]
+    J -->|Phrases| M[Narrow phrase tree]
+    M --> K
+```
+
+`web/src/App.tsx` controls the main screens, `web/src/hooks/useEyeTracker.ts` processes the webcam and MediaPipe output, `web/src/components/EyeRemote.tsx` converts gaze and blinks into navigation, and `web/src/components/NeedsBoard.tsx` provides the patient communication interface.
+
 ## Quick start: VisionLoop
 
 You need Node.js **22.12 or newer**, npm, a webcam, and a browser with camera access. An internet connection is needed to load the MediaPipe runtime and model.
