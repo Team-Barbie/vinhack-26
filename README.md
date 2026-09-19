@@ -45,7 +45,7 @@ Choose **Patient Board** on the home screen to access:
 
 The **eye remote** moves a highlight between cards using the same calibration: look left, right, up, or down to move and close your eyes for about half a second to pick. Four arrows sit at the screen edges (Up, Down, Left, Right): the one your eyes are on turns white and fills as you hold the look, and tapping one moves the highlight too. Every card also works by tapping.
 
-Request cards use dot-matrix icons, in the spirit of Nothing OS: each Apple emoji (from the `emoji-datasource-apple` package on jsDelivr, so it is the same on every operating system) is cropped to a common size and redrawn on a dot grid, with dot size following brightness. Cards also carry a faint dotted frame. If an emoji image can't load, the system emoji is shown instead.
+Request cards use simple line icons in a single colour, so they look the same on every operating system, and carry a faint dotted frame. Only the Emergency card is red.
 
 The board uses bundled audio clips and browser speech synthesis. Cards such as "Call a nurse" play a message; they do not connect to a hospital dispatch service. VisionLoop is a communication prototype, not a replacement for a hospital's certified nurse-call or emergency system.
 

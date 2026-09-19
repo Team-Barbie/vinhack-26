@@ -36,8 +36,8 @@ export function Privacy({ onExit }: { onExit: () => void }) {
       <h2>Network requests</h2>
       <p>To run, the app downloads files from these services, which can see your IP address:</p>
       <ul>
-        <li>Google Fonts, for the Manrope and JetBrains Mono typefaces.</li>
-        <li>jsDelivr, for the MediaPipe face-tracking runtime and the emoji images (Apple-style artwork).</li>
+        <li>Google Fonts, for the Atkinson Hyperlegible typefaces.</li>
+        <li>jsDelivr, for the MediaPipe face-tracking runtime.</li>
         <li>Google Cloud Storage, for the MediaPipe face landmark model.</li>
       </ul>
 
