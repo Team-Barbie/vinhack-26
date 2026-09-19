@@ -41,11 +41,11 @@ Choose **Patient Board** on the home screen to access:
 - **Needs**: water, food, the bathroom, help moving, and calling a nurse.
 - **More** and **Emergency**: comfort requests and urgent health problems.
 - **Talk**: one-tap phrases such as "Stop" or "Say that again", plus yes/no answers.
-- **Phrases**, which narrows a phrase list using left/right gaze selections. Look toward the group containing your phrase, and blink or dwell for about 1.1 seconds to select. Return your gaze to the center between selections. Look toward the upper screen area and blink or dwell to go back. Once a single phrase is selected, it is spoken and the list resets. Tapping a side works too.
+- **Phrases**: a phrase tree shown as two panels, left and right, at every step. Use the eye remote (or tap) to pick the panel holding what you want to say; each pick narrows the choices until one exact phrase is spoken, then the board starts over. **Back one step** and **Start over** sit above the panels.
 
 The **eye remote** moves a highlight between cards using the same calibration: look left, right, up, or down to move and close your eyes for about half a second to pick. Four arrows sit at the screen edges (Up, Down, Left, Right): the one your eyes are on turns white and fills as you hold the look, and tapping one moves the highlight too. Every card also works by tapping.
 
-Request cards use black-and-white Apple-style emoji, loaded from the `emoji-datasource-apple` package on jsDelivr so they look the same on every operating system. If an image can't load, the system emoji is shown instead.
+Request cards use dot-matrix icons, in the spirit of Nothing OS: each Apple emoji (from the `emoji-datasource-apple` package on jsDelivr, so it is the same on every operating system) is cropped to a common size and redrawn on a dot grid, with dot size following brightness. Cards also carry a faint dotted frame. If an emoji image can't load, the system emoji is shown instead.
 
 The board uses bundled audio clips and browser speech synthesis. Cards such as "Call a nurse" play a message; they do not connect to a hospital dispatch service. VisionLoop is a communication prototype, not a replacement for a hospital's certified nurse-call or emergency system.
 

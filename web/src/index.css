@@ -32,7 +32,8 @@
   /* Glass - frosted surfaces for buttons and floating chrome */
   --glass-blur: 18px;
   --glass-border: rgba(255, 255, 255, 0.16);
-  --glass-sheen: rgba(255, 255, 255, 0.14);
+  /* No top highlight: it doubled the top edge to 2px while the other sides stay 1px. */
+  --glass-sheen: transparent;
   --glass-tint: rgba(255, 255, 255, 0.07);
   --glass-tint-strong: rgba(255, 255, 255, 0.12);
 
@@ -53,7 +54,7 @@
   --slow: 280ms;
 
   /* Shadows */
-  --shadow-card: 0 1px 0 rgba(255, 255, 255, 0.03) inset, 0 12px 32px -16px rgba(0, 0, 0, 0.6);
+  --shadow-card: 0 12px 32px -16px rgba(0, 0, 0, 0.6);
   --shadow-float: 0 24px 60px -20px rgba(0, 0, 0, 0.7);
 
   font-family: var(--font-sans);
@@ -167,4 +168,44 @@ button:disabled {
 
 .tracker-cam.is-medium {
   width: 280px;
+}
+
+/* Dotted frame on the big cards: a dot grid that fades out toward the middle so the
+   icon and label stay clean. Cards only set --fill and --dot; nothing else paints a
+   background on them, so hover and highlight states keep their dots. */
+.need-tile,
+.home-choice,
+.gaze-choice {
+  --fill: #181818;
+  --dot: rgba(255, 255, 255, 0.17);
+  background-color: var(--fill);
+  background-image:
+    radial-gradient(ellipse 62% 64% at 50% 46%, var(--fill) 34%, transparent 100%),
+    radial-gradient(circle, var(--dot) 1px, transparent 1.7px);
+  background-size: 100% 100%, 14px 14px;
+  background-position: center, 50% 50%;
+}
+
+/* Dot-matrix emoji: the mask is a dot grid drawn from the emoji, so it follows the text colour. */
+.emoji {
+  display: inline-block;
+  width: 1em;
+  height: 1em;
+}
+
+.emoji-dots {
+  background-color: currentColor;
+  -webkit-mask: var(--emoji-mask) center / contain no-repeat;
+  mask: var(--emoji-mask) center / contain no-repeat;
+  opacity: 0;
+}
+
+.emoji-dots.is-ready {
+  opacity: 1;
+  transition: opacity 180ms var(--ease);
+}
+
+.emoji-native {
+  line-height: 1;
+  filter: grayscale(1);
 }
