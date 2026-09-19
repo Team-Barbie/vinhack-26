@@ -18,6 +18,7 @@ import {
 } from '../lib/eyeRemote'
 
 const SYMBOLS: Record<Direction, string> = { center: '●', left: '←', right: '→', up: '↑', down: '↓' }
+const LABELS: Record<Direction, string> = { center: 'Center', left: 'Left', right: 'Right', up: 'Top', down: 'Bottom' }
 
 // Direction templates come from the app-wide calibration (eye.remoteProfile);
 // this component turns live eye features into moves and blink selections, and
@@ -186,12 +187,11 @@ export default function EyeRemote({ eye, root, screenKey }: {
           key={d}
           className={`remote-edge remote-edge-${d} ${looking(d) ? 'is-looking' : ''}`}
           style={{ '--fill-ms': `${looking(d) ? fillMs : MOVE_HOLD_MS}ms` } as CSSProperties}
-          aria-label={`Look here or tap to move ${d}`}
+          aria-label={`Look here or tap to move ${LABELS[d].toLowerCase()}`}
           onClick={() => moveRef.current(d)}
         >
           <span className="remote-edge-arrow" aria-hidden="true">{SYMBOLS[d]}</span>
-          <strong>{d}</strong>
-          <small>Look here</small>
+          <strong>{LABELS[d]}</strong>
           <span key={`${d}-${looking(d) ? fillCycle : 'idle'}`} className="remote-edge-progress" aria-hidden="true" />
         </button>
       ))}
