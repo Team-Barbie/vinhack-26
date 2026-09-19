@@ -2,7 +2,9 @@
 
 **Communicate with your eyes.**
 
-VisionLoop is a webcam-based communication prototype with a patient needs board and spoken phrases, controlled with the eyes. MediaPipe face and iris tracking turns gaze into on-screen selections without dedicated eye-tracking hardware.
+VisionLoop is a webcam-based assistive communication prototype for patients who cannot easily speak or reach a call button. MediaPipe face and iris tracking turns gaze and blinks into on-screen selections without dedicated eye-tracking hardware, while every control remains usable with touch, mouse, or keyboard.
+
+Built by **Team Barbie** for **VinHack 2026**.
 
 ## What's in this repository?
 
@@ -18,24 +20,27 @@ The primary VisionLoop application lives in `web/`. Its high-level flow is:
 
 ```mermaid
 flowchart TD
-    A[Open React app] --> B[Request webcam access]
-    B --> C[MediaPipe detects face, iris, and blinks]
-    C --> D[One-time gaze calibration]
-    D --> E[Save calibration in localStorage]
-    E --> F[Patient Board]
+    A[Open VisionLoop] --> B[Calibrate remote]
+    B --> C[Request webcam access]
+    C --> D[MediaPipe detects face, iris, and blinks]
+    D --> E[Five-direction gaze calibration]
+    E --> F[Save calibration in localStorage]
+    F --> G[VisionLoop reveal]
+    G --> H[Patient Board]
 
-    F --> G[Look toward a direction]
-    G --> H[Highlight the matching button]
-    H --> I[Blink to select]
-    I --> J{Selected feature}
+    H --> I[Look toward a direction]
+    I --> J[Highlight the matching control]
+    J --> K[Blink to select]
+    K --> L{Selected feature}
 
-    J -->|Need or Emergency| K[Speak request aloud]
-    J -->|Yes or No| L[Speak answer]
-    J -->|Phrases| M[Narrow phrase tree]
-    M --> K
+    L -->|Need| M[Speak request and update transcript]
+    L -->|Yes or No| N[Speak answer]
+    L -->|Phrases| O[Narrow phrase tree]
+    L -->|Emergency| P[Play local alert and flag nurse]
+    O --> M
 ```
 
-`web/src/App.tsx` controls the main screens, `web/src/hooks/useEyeTracker.ts` processes the webcam and MediaPipe output, `web/src/components/EyeRemote.tsx` converts gaze and blinks into navigation, and `web/src/components/NeedsBoard.tsx` provides the patient communication interface.
+`web/src/App.tsx` controls the intro, calibration, logo reveal, and board flow. `web/src/hooks/useEyeTracker.ts` processes the webcam and MediaPipe output, `web/src/components/EyeRemote.tsx` converts gaze and blinks into navigation, and `web/src/components/NeedsBoard.tsx` provides the patient communication interface.
 
 ## Quick start: VisionLoop
 
@@ -55,26 +60,41 @@ Open the local URL printed by Vite and allow camera access. Browser camera acces
 
 ### Calibrate once
 
-The app opens on a one-time calibration: a dot appears in the middle, then on the left, right, top, and bottom of the screen, and you look at each until its bar fills (about 15 seconds). Those five directions drive everything: the eye remote on the Patient Board and left/right/up in Phrases. It is saved in the browser, so later visits go straight to the home screen. Use **Calibrate again** on the home screen or the board if you move the laptop or change seats. **Skip, I'll use touch** leaves every screen working by tap, mouse, and keyboard.
+The app opens with the VisionLoop intro and a **Calibrate remote** button. During setup, a dot appears in the middle, then on the left, right, top, and bottom of the screen. Look at each target until its progress completes; the process takes about 15 seconds. The five captured directions drive the Patient Board and phrase selector. Calibration is stored in browser local storage. Use **Calibrate again** from the board after moving the laptop, changing seats, or changing lighting.
 
 If you already have the repository, run only `cd web`, `npm install`, and `npm run dev` from its root. No API key or environment file is required by the current app.
 
 ### Patient Board
 
-Choose **Patient Board** on the home screen to access:
+After calibration, VisionLoop opens the Patient Board with these sections:
 
-- **Needs**: water, food, the bathroom, help moving, and calling a nurse.
-- **More** and **Emergency**: comfort requests and urgent health problems.
-- **Talk**: one-tap phrases such as "Stop" or "Say that again", plus yes/no answers.
-- **Phrases**: a phrase tree shown as two panels, left and right, at every step. Use the eye remote (or tap) to pick the panel holding what you want to say; each pick narrows the choices until one exact phrase is spoken, then the board starts over. **Back one step** and **Start over** sit above the panels.
+- **Needs**: nurse, water, bathroom, medicine, pain, food, repositioning, bedding, and temperature requests.
+- **Talk**: persistent Yes/No answers, conversation-steering phrases, a **More to say** layer, and an eight-line spoken transcript.
+- **Phrases**: a hierarchical phrase tree split into left and right panels. Each selection narrows the choices until VisionLoop speaks one exact phrase.
+- **More**: hygiene, room, belongings, family, phone, comfort, and rest requests.
+- **Emergency**: plays a local alert tone and displays a nurse-alert status on the board.
 
-The **eye remote** moves a highlight between cards using the same calibration: look left, right, up, or down to move and close your eyes for about half a second to pick. Four arrows sit at the screen edges (Up, Down, Left, Right): the one your eyes are on turns white and fills as you hold the look, and tapping one moves the highlight too. Every card also works by tapping.
+The **eye remote** moves a highlight between controls using the saved calibration: look left, right, up, or down to move and hold a blink to select. Edge arrows provide visible gaze feedback, and every control also works by tapping or clicking.
 
-Request cards use simple line icons in a single colour, so they look the same on every operating system, and carry a faint dotted frame. Only the Emergency card is red.
+If VisionLoop detects closed eyes for about three seconds, it opens an **Are you okay?** check-in with **I'm okay** and **I need help** choices. Choosing help speaks the request, plays the local alert tone, and flags the nurse status on screen.
 
-The board uses bundled audio clips and browser speech synthesis. Cards such as "Call a nurse" play a message; they do not connect to a hospital dispatch service. VisionLoop is a communication prototype, not a replacement for a hospital's certified nurse-call or emergency system.
+Request cards pair large visual icons with both a short label and the full phrase VisionLoop will speak. The active card receives a strong focus treatment so patients and caregivers can see the current gaze selection.
+
+The board uses browser speech synthesis and a generated local alert tone. Nurse and Emergency actions update only the current browser interface; they do not contact a hospital dispatch service. VisionLoop is a communication prototype, not a replacement for a certified nurse-call or emergency system.
 
 For consistent tracking, use even lighting and position the camera near eye level. Keep your head steady during calibration and recalibrate after changing position.
+
+## Project materials
+
+- [Figma UI file](https://www.figma.com/design/94HjT5KJCZInlVge6frj3E/VisionLoop-%E2%80%94-Website-UI?node-id=9-2)
+- [VinHack presentation](output/VisionLoop-VINHACK-Dashboard.pptx)
+
+## Team Barbie
+
+- Adwik Shankhdhar
+- Biswa Ranjan Panda
+- Pranav Harikumar
+- Turany Pandey
 
 ## Standalone VisionLoop trainer
 
@@ -166,7 +186,7 @@ The root tests exercise the standalone tracking and gameplay modules with synthe
 
 ```text
 web/
-  src/components/      Home, calibration, Patient Board, and Phrases
+  src/components/      Intro, calibration, logo reveal, Patient Board, and Phrases
   src/hooks/           React eye-tracking integration
   src/lib/             Tracking and smoothing utilities
   public/audio/        Spoken request recordings
