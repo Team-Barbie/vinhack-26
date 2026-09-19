@@ -122,7 +122,7 @@ export default function NeedsBoard({ onRecalibrate }: { onRecalibrate: () => voi
 
     speak(tile.phrase)
     rememberLine(tile.phrase)
-    flashTile(tile.id, 650)
+    flashTile(tile.id, COOLDOWN_MS)
     if (PAGER_IDS.has(tile.id)) setPager(`Nurse alerted at ${nurseTime()}`)
     afterSpeak?.()
   }

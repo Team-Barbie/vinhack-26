@@ -47,6 +47,23 @@
   font-size: 0.7rem;
   text-align: center;
 }
+.has-eye-remote .need-tile.remote-focused.spoken {
+  --fill: var(--accent);
+  --dot: rgba(10, 10, 10, 0.2);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 7px var(--accent-glow), var(--shadow-float);
+  color: var(--accent-ink);
+  animation: gaze-selection-confirm 500ms var(--ease) both;
+}
+.has-eye-remote .need-tile.remote-focused.spoken::before {
+  content: 'Selected';
+  background: rgba(10, 10, 10, 0.82);
+  color: var(--accent);
+}
+.has-eye-remote[data-eye-ready='true'] .need-tile.remote-focused.spoken::after {
+  content: 'Spoken';
+  color: rgba(10, 10, 10, 0.68);
+}
 
 .remote-edges { position: fixed; inset: 0; z-index: 45; pointer-events: none; }
 .remote-edge {
@@ -111,6 +128,10 @@
 @keyframes gaze-badge-in {
   from { opacity: 0; transform: translateY(-5px) scale(0.92); }
   to { opacity: 1; transform: none; }
+}
+@keyframes gaze-selection-confirm {
+  from { transform: translateY(-2px) scale(0.96); }
+  to { transform: translateY(-3px) scale(1); }
 }
 @media (max-width: 900px) {
   .has-eye-remote { padding-inline: 74px; }

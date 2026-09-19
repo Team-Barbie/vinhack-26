@@ -14,14 +14,12 @@
   background: var(--bg);
 }
 
-/* Faint dotted field that fades out toward the middle, so the wordmark sits in clear space. */
+/* Live dotted field: resting dots fade around the wordmark and swell under the user's gaze. */
 .intro-field {
   position: absolute;
   inset: 0;
-  background-image: radial-gradient(circle, rgba(255, 255, 255, 0.2) 1px, transparent 1.7px);
-  background-size: 18px 18px;
-  -webkit-mask-image: radial-gradient(ellipse 55% 50% at 50% 46%, transparent 30%, #000 100%);
-  mask-image: radial-gradient(ellipse 55% 50% at 50% 46%, transparent 30%, #000 100%);
+  width: 100%;
+  height: 100%;
   pointer-events: none;
 }
 
