@@ -36,6 +36,7 @@ export function directionSignal(
     return { d, strength, residual, score: strength - residual * 0.16 }
   }).sort((a, b) => b.score - a.score)
   const best = ranked[0]
+  const runnerUp = ranked[1]
   const stay = Math.max(0.12, enter - 0.1)
   if (held !== 'center') {
     const current = ranked.find((r) => r.d === held)
@@ -45,7 +46,9 @@ export function directionSignal(
       }
     }
   }
-  if (best.strength < enter || best.strength > 2.5) {
+  // Diagonal/noisy samples can project equally well onto two calibrated axes.
+  // Treat those as neutral instead of moving in an arbitrary direction.
+  if (best.strength < enter || best.strength > 2.5 || best.score - runnerUp.score < 0.08) {
     return { direction: 'center', strength: Math.max(0, best.strength) }
   }
   return { direction: best.d, strength: Math.max(0, best.strength) }
@@ -92,7 +95,7 @@ export function pointerFromProfile(p: RemoteProfile, f: number[]): [number, numb
   return [clamp(T.center[0] + sx), clamp(T.center[1] + sy)]
 }
 
-export const MOVE_HOLD_MS = 450
+export const MOVE_HOLD_MS = 420
 export const MOVE_HOLD_SETTLE_MS = 620
 export const MOVE_REPEAT_MS = 900
 
@@ -138,17 +141,19 @@ export class RemoteRepeater {
   constructor(initialMs = MOVE_HOLD_MS, repeatMs = MOVE_REPEAT_MS) { this.initialMs = initialMs; this.repeatMs = repeatMs }
   get repeating(): boolean { return this.direction !== 'center' && this.neutralAt === null && this.nextAt - this.waitStartedAt >= this.repeatMs - 1 }
   progress(now: number): number {
-    if (this.direction === 'center') return 0
+    if (this.direction === 'center' || this.neutralAt !== null) return 0
     return Math.min(1, Math.max(0, (now - this.waitStartedAt) / Math.max(1, this.nextAt - this.waitStartedAt)))
   }
-  reset(): void { this.direction = 'center'; this.nextAt = 0; this.neutralAt = null }
+  reset(): void { this.direction = 'center'; this.nextAt = 0; this.neutralAt = null; this.waitStartedAt = 0 }
   update(direction: Direction, now: number, holdMs = this.initialMs): Direction | null {
     if (direction === 'center') {
       this.neutralAt ??= now
       if (now - this.neutralAt >= 280) this.reset()
       return null
     }
-    if (this.neutralAt !== null && now - this.neutralAt >= 280) this.reset()
+    // Bridge a single uncertain frame, but restart the hold after a genuine
+    // return to center so a series of short glances cannot trigger movement.
+    if (this.neutralAt !== null && now - this.neutralAt >= 80) this.reset()
     this.neutralAt = null
     if (direction !== this.direction) {
       this.direction = direction
@@ -188,7 +193,8 @@ export class RemoteBlink {
   reset(): void { this.closedAt = null; this.armed = false; this.openAt = 0; this.selected = ''; this.peak = 0 }
   // faceLost: keep a close in progress when lids hide the landmarks.
   update(left: number, right: number, now: number, selected: string, faceLost = false): string | null {
-    const score = Math.max(left, right)
+    // Selection requires both eyes to close; using the weaker eye rejects winks.
+    const score = Math.min(left, right)
     const closed = this.closedAt !== null
       ? faceLost || score > 0.32
       : !faceLost && score > 0.42

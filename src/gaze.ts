@@ -443,6 +443,15 @@ export class GazeSmoother {
     if (timestamp - this.lastAt > 280) this.reset()
     this.lastAt = timestamp
 
+    // A large raw displacement is a saccade even when the caller has not yet
+    // classified it. Drop the fixation window so it does not delay the jump.
+    if (!saccade && this.last && Math.hypot(raw.x - this.last.x, raw.y - this.last.y) > 0.12) {
+      saccade = true
+      this.window = []
+      this.x.reset()
+      this.y.reset()
+    }
+
     this.x.setMinCutoff(saccade ? 1.1 : 0.14)
     this.y.setMinCutoff(saccade ? 0.9 : 0.1)
     this.x.setBeta(saccade ? 0.28 : 0.03)

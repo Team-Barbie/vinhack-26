@@ -6,6 +6,8 @@ VisionLoop is a webcam-based assistive communication prototype for patients who 
 
 Built by **Team Barbie** for **VinHack 2026**.
 
+Built for VINHACK 2026, VisionLoop finished as a Top 10 project.
+
 ## What's in this repository?
 
 | Application | Location | Purpose |

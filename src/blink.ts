@@ -67,7 +67,13 @@ export class BlinkDetector {
     this.lastAt = now
 
     if (!frame.faceFound) {
-      if (this.frozen) this.peak = Math.max(this.peak, 0.7)
+      // Losing the face makes blink duration and symmetry unknowable. Cancel
+      // the gesture and require a fresh open-eye frame before rearming.
+      this.frozen = false
+      this.armed = false
+      this.aim = null
+      this.peak = 0
+      this.lastScore = -1
       return null
     }
 
@@ -97,7 +103,7 @@ export class BlinkDetector {
     this.armed = true
     this.holdUntil = now + 240
     this.aim = null
-    const blinked = this.peak >= 0.26 && duration >= 28 && duration <= 700
+    const blinked = this.peak >= 0.26 && duration >= 28 && duration <= 550
     const shot = blinked && now - this.lastFireAt >= 220 ? shotAim : null
     this.peak = 0
     if (shot) this.lastFireAt = now
