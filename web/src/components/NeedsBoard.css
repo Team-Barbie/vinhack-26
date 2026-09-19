@@ -18,6 +18,11 @@
 .has-eye-remote .nav-tabs { flex-wrap: wrap; max-width: 100%; }
 .has-eye-remote .nav-tab { min-width: auto; min-height: 48px; padding: 12px 18px; }
 .has-eye-remote .need-tile { position: relative; }
+.has-eye-remote .need-tile.remote-focused {
+  --fill: #202020;
+  border-color: var(--accent);
+  animation: gaze-focus-pulse 1.55s var(--ease) infinite;
+}
 .has-eye-remote .need-tile.remote-focused::before {
   content: 'Highlighted';
   position: absolute;
@@ -30,6 +35,7 @@
   color: var(--text);
   font-size: 0.68rem;
   font-weight: 700;
+  animation: gaze-badge-in 220ms var(--ease) both;
 }
 .has-eye-remote[data-eye-ready='true'] .need-tile.remote-focused::after {
   content: 'Hold a blink to choose';
@@ -92,6 +98,20 @@
   from { transform: scaleX(0); }
   to { transform: scaleX(1); }
 }
+@keyframes gaze-focus-pulse {
+  0%, 100% {
+    transform: translateY(-2px) scale(1);
+    box-shadow: 0 0 0 4px var(--accent-tint), 0 16px 42px -18px rgba(255, 255, 255, 0.3);
+  }
+  50% {
+    transform: translateY(-4px) scale(1.012);
+    box-shadow: 0 0 0 9px var(--accent-glow), 0 22px 52px -16px rgba(255, 255, 255, 0.48);
+  }
+}
+@keyframes gaze-badge-in {
+  from { opacity: 0; transform: translateY(-5px) scale(0.92); }
+  to { opacity: 1; transform: none; }
+}
 @media (max-width: 900px) {
   .has-eye-remote { padding-inline: 74px; }
   .has-eye-remote .tile-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
@@ -123,6 +143,12 @@
 
 @media (prefers-reduced-motion: reduce) {
   .needs-board button { transition: none; }
+  .has-eye-remote .need-tile.remote-focused {
+    animation: none;
+    transform: translateY(-2px);
+    box-shadow: 0 0 0 7px var(--accent-tint), var(--shadow-float);
+  }
+  .has-eye-remote .need-tile.remote-focused::before { animation: none; }
   .remote-edge.is-looking .remote-edge-progress::after {
     animation: none;
     transform: scaleX(1);
