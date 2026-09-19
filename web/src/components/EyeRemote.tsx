@@ -184,7 +184,7 @@ export default function EyeRemote({ eye, root, screenKey }: {
       lastGood = snap.at
 
       featureWindow.push(snap.features!.slice(0, 4))
-      if (featureWindow.length > 5) featureWindow.shift()
+      if (featureWindow.length > 4) featureWindow.shift()
       const settling = now - enteredAt < SCREEN_SETTLE_MS
       const enter = settling ? MOVE_ENTER_SETTLE : MOVE_ENTER
       const holdMs = settling ? MOVE_HOLD_SETTLE_MS : MOVE_HOLD_MS

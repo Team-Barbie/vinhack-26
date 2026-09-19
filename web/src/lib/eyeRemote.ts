@@ -11,12 +11,13 @@ export function profileValid(p: RemoteProfile): boolean {
     DIRECTIONS.slice(1).every((d) => Math.hypot(...p[d].map((v, i) => v - p.center[i])) > 0.008)
 }
 
-export const MOVE_ENTER = 0.36
-export const MOVE_ENTER_SETTLE = 0.46
+export const MOVE_ENTER = 0.24
+export const MOVE_ENTER_SETTLE = 0.32
 export const SCREEN_SETTLE_MS = 1000
 
-// Measure progress along each learned direction, not proximity to its endpoint.
-// `held` adds hysteresis so a noisy frame does not drop back to center.
+// Each extremity is its own calibrated template. Those axes are not orthogonal, so
+// a look left can also score a bit on up. Once a direction is active, keep it while
+// that look is still present so a noisy frame does not drop tracking.
 export function directionSignal(
   p: RemoteProfile,
   f: number[],
@@ -32,15 +33,22 @@ export function directionSignal(
     const length = axis.reduce((s, v) => s + v * v, 0)
     const strength = delta.reduce((s, v, i) => s + v * axis[i], 0) / Math.max(length, 1e-6)
     const residual = Math.sqrt(delta.reduce((s, v, i) => s + (v - strength * axis[i]) ** 2, 0))
-    return { d, strength, residual, score: strength - residual * 0.5 }
+    return { d, strength, residual, score: strength - residual * 0.16 }
   }).sort((a, b) => b.score - a.score)
   const best = ranked[0]
-  const stay = Math.max(0.24, enter - 0.12)
-  if (held !== 'center' && best.d === held && best.strength >= stay && best.strength <= 2.5 && best.residual < 0.8) {
-    return { direction: held, strength: Math.max(0, best.strength) }
+  const stay = Math.max(0.12, enter - 0.1)
+  if (held !== 'center') {
+    const current = ranked.find((r) => r.d === held)
+    if (current && current.strength >= stay && current.strength <= 2.5) {
+      if (best.d === held || best.strength < current.strength + 0.1) {
+        return { direction: held, strength: Math.max(0, current.strength) }
+      }
+    }
   }
-  const valid = best.strength >= enter && best.strength <= 2.5 && best.residual < 0.65 && best.score - ranked[1].score >= 0.12
-  return { direction: valid ? best.d : 'center', strength: Math.max(0, best.strength) }
+  if (best.strength < enter || best.strength > 2.5) {
+    return { direction: 'center', strength: Math.max(0, best.strength) }
+  }
+  return { direction: best.d, strength: Math.max(0, best.strength) }
 }
 
 export function classifyDirection(p: RemoteProfile, f: number[]): Direction {
@@ -93,6 +101,11 @@ export class DirectionHold {
   private held: Direction = 'center'
   private pending: Direction = 'center'
   private pendingAt = 0
+  constructor(
+    private returnMs = 200,
+    private leaveCenterMs = 80,
+    private changeMs = 70,
+  ) {}
   get value(): Direction { return this.held }
   reset(): void { this.held = 'center'; this.pending = 'center'; this.pendingAt = 0 }
   update(raw: Direction, now: number): Direction {
@@ -106,7 +119,7 @@ export class DirectionHold {
       this.pendingAt = now
       return this.held
     }
-    const wait = raw === 'center' ? 150 : this.held === 'center' ? 110 : 100
+    const wait = raw === 'center' ? this.returnMs : this.held === 'center' ? this.leaveCenterMs : this.changeMs
     if (now - this.pendingAt >= wait) this.held = raw
     return this.held
   }
@@ -129,10 +142,10 @@ export class RemoteRepeater {
   update(direction: Direction, now: number, holdMs = this.initialMs): Direction | null {
     if (direction === 'center') {
       this.neutralAt ??= now
-      if (now - this.neutralAt >= 160) this.reset()
+      if (now - this.neutralAt >= 280) this.reset()
       return null
     }
-    if (this.neutralAt !== null && now - this.neutralAt >= 160) this.reset()
+    if (this.neutralAt !== null && now - this.neutralAt >= 280) this.reset()
     this.neutralAt = null
     if (direction !== this.direction) {
       this.direction = direction

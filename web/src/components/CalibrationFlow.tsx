@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useEye } from '../hooks/EyeTrackerProvider'
-import { directionSignal, medianFeatures, type Direction, type RemoteProfile } from '../lib/eyeRemote'
+import { DirectionHold, directionSignal, medianFeatures, MOVE_ENTER, type Direction, type RemoteProfile } from '../lib/eyeRemote'
 import { DirectionCalibration, FaceChip } from './Calibration'
 import './Panel.css'
 import './CalibrationFlow.css'
@@ -9,22 +9,38 @@ type Phase = 'intro' | 'calibrating' | 'check'
 
 function DirectionPad({ profile }: { profile: RemoteProfile }) {
   const eye = useEye()
-  const [direction, setDirection] = useState<Direction | null>(null)
+  const [direction, setDirection] = useState<Direction | null>('center')
 
   useEffect(() => {
     let raf = 0
     let recent: number[][] = []
+    let last: Direction | null = 'center'
+    const hold = new DirectionHold(200, 90, 80)
+    let lastGood = 0
+    const publish = (next: Direction | null) => {
+      if (next === last) return
+      last = next
+      setDirection(next)
+    }
     const tick = () => {
+      raf = requestAnimationFrame(tick)
+      const now = performance.now()
       const snap = eye.snapshotRef.current
       const f = snap.features
-      if (snap.detectedFace && f?.length === 4 && f.every(Number.isFinite)) {
-        recent = [...recent.slice(-2), f.slice(0, 4)]
-        setDirection(directionSignal(profile, medianFeatures(recent)).direction)
-      } else {
-        recent = []
-        setDirection(null)
+      const trackingOk = Boolean(snap.detectedFace && f?.length === 4 && f.every(Number.isFinite))
+      if (!trackingOk || !f) {
+        if (now - lastGood > 280) {
+          recent = []
+          hold.reset()
+          publish(null)
+        }
+        return
       }
-      raf = requestAnimationFrame(tick)
+      lastGood = now
+      recent.push(f.slice(0, 4))
+      if (recent.length > 4) recent.shift()
+      const raw = directionSignal(profile, medianFeatures(recent), hold.value, MOVE_ENTER).direction
+      publish(hold.update(raw, now))
     }
     raf = requestAnimationFrame(tick)
     return () => cancelAnimationFrame(raf)

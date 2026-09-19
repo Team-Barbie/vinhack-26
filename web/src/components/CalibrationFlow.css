@@ -14,7 +14,7 @@
   background: var(--glass-tint);
   color: var(--text-dim);
   font-weight: 700;
-  transition: background var(--fast) var(--ease), border-color var(--fast) var(--ease), color var(--fast) var(--ease);
+  transition: background 180ms var(--ease), border-color 180ms var(--ease), color 180ms var(--ease);
 }
 
 .calib-pad-key.is-up {
